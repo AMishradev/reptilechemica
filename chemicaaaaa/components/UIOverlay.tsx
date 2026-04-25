@@ -9,14 +9,15 @@ interface UIOverlayProps {
   combinedElement: ElementData | null;
   message: string;
   trackingRef: React.MutableRefObject<TrackingData>;
-  labSlots: ElementData[]; // Dashboard slots (8 manually selected)
-  labCreatedSlots: ElementData[]; // Lab-created slots (8 auto-discovered)
+  labSlots: ElementData[];
+  labCreatedSlots: ElementData[];
   isDashboardOpen: boolean;
   onToggleDashboard: () => void;
   savedElements: ElementData[];
   gameState?: GameState;
   deathReason?: string;
   showSixtySeven?: boolean;
+  pinnedHand?: 'left' | 'right' | null;
 }
 
 const DashboardIcon = () => (
@@ -86,7 +87,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
   savedElements,
   gameState,
   deathReason,
-  showSixtySeven = false
+  showSixtySeven = false,
+  pinnedHand = null,
 }) => {
   if (gameState === 'dead') {
       return <DeathScreen reason={deathReason || "Unknown Cause"} />;
@@ -318,10 +320,17 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
           <div
             className={`text-left transition-all duration-500 ${combinedElement ? "opacity-0 translate-y-10" : "opacity-100"}`}
           >
-            <div className="text-[10px] text-cyan-400 mb-2 font-mono tracking-[0.2em] border-b border-cyan-900 pb-1 inline-block">
-              SYSTEM: LEFT HAND
+            <div className="flex items-center gap-2 mb-2">
+              <div className="text-[10px] text-cyan-400 font-mono tracking-[0.2em] border-b border-cyan-900 pb-1 inline-block">
+                SYSTEM: LEFT HAND
+              </div>
+              {pinnedHand === 'left' && (
+                <div className="text-[9px] font-['Orbitron'] font-bold tracking-widest text-black bg-cyan-400 px-2 py-0.5 rounded animate-pulse">
+                  LOCKED
+                </div>
+              )}
             </div>
-            <div className={`${getSymbolScaleClass(leftElement.symbol, 'system')} font-['Orbitron'] font-bold text-white drop-shadow-[0_0_20px_rgba(34,211,238,0.6)]`}>
+            <div className={`${getSymbolScaleClass(leftElement.symbol, 'system')} font-['Orbitron'] font-bold drop-shadow-[0_0_20px_rgba(34,211,238,0.6)] ${pinnedHand === 'left' ? 'text-cyan-300' : 'text-white'}`}>
               {leftElement.symbol}
             </div>
             <div className="text-sm text-cyan-200/70 mt-1 font-mono">
@@ -397,10 +406,17 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
           <div
             className={`text-right transition-all duration-500 ${combinedElement ? "opacity-0 translate-y-10" : "opacity-100"}`}
           >
-            <div className="text-[10px] text-purple-400 mb-2 font-mono tracking-[0.2em] border-b border-purple-900 pb-1 inline-block">
-              SYSTEM: RIGHT HAND
+            <div className="flex items-center justify-end gap-2 mb-2">
+              {pinnedHand === 'right' && (
+                <div className="text-[9px] font-['Orbitron'] font-bold tracking-widest text-black bg-purple-400 px-2 py-0.5 rounded animate-pulse">
+                  LOCKED
+                </div>
+              )}
+              <div className="text-[10px] text-purple-400 font-mono tracking-[0.2em] border-b border-purple-900 pb-1 inline-block">
+                SYSTEM: RIGHT HAND
+              </div>
             </div>
-            <div className={`${getSymbolScaleClass(rightElement.symbol, 'system')} font-['Orbitron'] font-bold text-white drop-shadow-[0_0_20px_rgba(168,85,247,0.6)]`}>
+            <div className={`${getSymbolScaleClass(rightElement.symbol, 'system')} font-['Orbitron'] font-bold drop-shadow-[0_0_20px_rgba(168,85,247,0.6)] ${pinnedHand === 'right' ? 'text-purple-300' : 'text-white'}`}>
               {rightElement.symbol}
             </div>
             <div className="text-sm text-purple-200/70 mt-1 font-mono">
@@ -481,10 +497,13 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                   <div className="w-1 h-1 bg-cyan-400"></div>Hover Select
                 </span>
                 <span className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-white"></div>Clap Fuse
+                  <div className="w-1 h-1 bg-white"></div>Fist to Pin
                 </span>
                 <span className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-red-500"></div>Spin Reset
+                  <div className="w-1 h-1 bg-purple-400"></div>Pinch to Fuse
+                </span>
+                <span className="flex items-center gap-2">
+                  <div className="w-1 h-1 bg-red-500"></div>Spin to Cancel
                 </span>
               </div>
             )}

@@ -1,10 +1,8 @@
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Canvas, useFrame, extend } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Html } from '@react-three/drei';
 import ParticleSphere from './ParticleSphere';
-import WaterSimulation from './WaterSimulation'; 
-import { SaltPile, SaltLattice } from './SaltSimulation'; 
 import AtomLabel from './AtomLabel';
 import { ElementData, TrackingData } from '../types';
 import { ELEMENTS } from '../constants';
@@ -15,7 +13,17 @@ interface SceneProps {
   rightElement: ElementData;
   combinedElement: ElementData | null;
   trackingData: React.MutableRefObject<TrackingData>;
+  pinnedHand: 'left' | 'right' | null;
+  pinnedPosRef: React.MutableRefObject<{ x: number; y: number } | null>;
+  interactionCooldownUntilRef: React.MutableRefObject<number>;
+  onOverlapMerge?: () => void;
+  onOverlapChange?: (isOverlapping: boolean) => void;
 }
+
+const OVERLAP_THRESHOLD = 2.9; // 3D units — enough for a slight intersection of the outer 1.5 radius rings
+const OVERLAP_HOLD = 0.1;      // seconds of sustained overlap before merge fires
+const MERGE_LOCK_TIMEOUT = 0.35; // seconds to wait for App state to confirm a merge before releasing the lock
+const SCENE_ORIGIN = new THREE.Vector3(0, 0, 0);
 
 const getComponentData = (symbol: string) => {
   return ELEMENTS.find(component => component.symbol === symbol) ?? {
@@ -32,27 +40,58 @@ const ComponentNode: React.FC<{
   position: [number, number, number];
   opacity: number;
   pulseOffset?: number;
-}> = ({ component, position, opacity, pulseOffset = 0 }) => {
+  mergeLockRef?: React.MutableRefObject<number>;
+}> = ({ component, position, opacity, pulseOffset = 0, mergeLockRef }) => {
   const groupRef = useRef<THREE.Group>(null);
   const ringRef = useRef<THREE.Mesh>(null);
+  const sphereRef = useRef<THREE.Mesh>(null);
+  const sphereMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const ringMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
 
   useFrame((state) => {
     const t = state.clock.elapsedTime + pulseOffset;
+    const mergeLock = mergeLockRef?.current ?? 0;
     if (groupRef.current) {
-      const pulse = 1 + Math.sin(t * 2.5) * 0.04;
+      const pulse = 1 + Math.sin(t * 2.5) * 0.04 * (1 - mergeLock * 0.7);
       groupRef.current.scale.setScalar(pulse);
     }
+    if (sphereRef.current) {
+      const targetScale = 1 + mergeLock * 0.2;
+      sphereRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.14);
+    }
+    if (sphereMaterialRef.current) {
+      sphereMaterialRef.current.opacity = THREE.MathUtils.lerp(
+        sphereMaterialRef.current.opacity,
+        opacity * (1 - mergeLock * 0.08),
+        0.14
+      );
+      sphereMaterialRef.current.emissiveIntensity = THREE.MathUtils.lerp(
+        sphereMaterialRef.current.emissiveIntensity,
+        0.45 + mergeLock * 0.65,
+        0.14
+      );
+    }
     if (ringRef.current) {
-      ringRef.current.rotation.z += 0.015;
-      ringRef.current.rotation.y += 0.01;
+      ringRef.current.rotation.z += 0.015 * (1 - mergeLock * 0.75);
+      ringRef.current.rotation.y += 0.01 * (1 - mergeLock * 0.75);
+      const targetScale = 1 - mergeLock * 0.24;
+      ringRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.14);
+    }
+    if (ringMaterialRef.current) {
+      ringMaterialRef.current.opacity = THREE.MathUtils.lerp(
+        ringMaterialRef.current.opacity,
+        opacity * (0.75 - mergeLock * 0.5),
+        0.14
+      );
     }
   });
 
   return (
     <group ref={groupRef} position={position}>
-      <mesh>
+      <mesh ref={sphereRef}>
         <sphereGeometry args={[0.42, 32, 32]} />
         <meshStandardMaterial
+          ref={sphereMaterialRef}
           color={component.color}
           emissive={component.color}
           emissiveIntensity={0.45}
@@ -64,7 +103,7 @@ const ComponentNode: React.FC<{
       </mesh>
       <mesh ref={ringRef}>
         <torusGeometry args={[0.62, 0.018, 12, 80]} />
-        <meshBasicMaterial color={component.color} transparent opacity={opacity * 0.75} />
+        <meshBasicMaterial ref={ringMaterialRef} color={component.color} transparent opacity={opacity * 0.75} />
       </mesh>
       <Html position={[0, -0.78, 0]} center style={{ pointerEvents: 'none' }}>
         <div className="flex flex-col items-center font-mono text-center">
@@ -113,16 +152,18 @@ const RouteTrafficPacket: React.FC<{
 const RouteComponent: React.FC<{
   scaleRef: React.MutableRefObject<number>;
   opacityTarget: number;
-}> = ({ scaleRef, opacityTarget }) => {
+  mergeLockRef?: React.MutableRefObject<number>;
+}> = ({ scaleRef, opacityTarget, mergeLockRef }) => {
   const groupRef = useRef<THREE.Group>(null);
   const api = getComponentData('API');
   const lb = getComponentData('LB');
 
   useFrame(() => {
     if (!groupRef.current) return;
-    const targetScale = 1 + scaleRef.current * 0.45;
+    const mergeLock = mergeLockRef?.current ?? 0;
+    const targetScale = 1 + scaleRef.current * 0.45 - mergeLock * 0.05;
     groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.12);
-    groupRef.current.rotation.y += 0.002;
+    groupRef.current.rotation.y += 0.002 * (1 - mergeLock * 0.8);
   });
 
   return (
@@ -140,8 +181,8 @@ const RouteComponent: React.FC<{
       <RouteTrafficPacket offset={0.28} opacity={opacityTarget * 0.85} />
       <RouteTrafficPacket offset={0.56} opacity={opacityTarget * 0.7} />
 
-      <ComponentNode component={api} position={[-1.8, 0, 0]} opacity={opacityTarget} pulseOffset={0} />
-      <ComponentNode component={lb} position={[1.8, 0, 0]} opacity={opacityTarget} pulseOffset={0.8} />
+      <ComponentNode component={api} position={[-1.8, 0, 0]} opacity={opacityTarget} pulseOffset={0} mergeLockRef={mergeLockRef} />
+      <ComponentNode component={lb} position={[1.8, 0, 0]} opacity={opacityTarget} pulseOffset={0.8} mergeLockRef={mergeLockRef} />
 
       <Html position={[0, 1.05, 0]} center style={{ pointerEvents: 'none' }}>
         <div
@@ -182,16 +223,18 @@ const EdgePulse: React.FC<{
 const EdgeComponent: React.FC<{
   scaleRef: React.MutableRefObject<number>;
   opacityTarget: number;
-}> = ({ scaleRef, opacityTarget }) => {
+  mergeLockRef?: React.MutableRefObject<number>;
+}> = ({ scaleRef, opacityTarget, mergeLockRef }) => {
   const groupRef = useRef<THREE.Group>(null);
   const client = getComponentData('CLIENT');
   const dns = getComponentData('DNS');
 
   useFrame((state) => {
     if (!groupRef.current) return;
-    const targetScale = 1 + scaleRef.current * 0.45;
+    const mergeLock = mergeLockRef?.current ?? 0;
+    const targetScale = 1 + scaleRef.current * 0.45 - mergeLock * 0.05;
     groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.12);
-    groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.35) * 0.18;
+    groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.35) * 0.18 * (1 - mergeLock * 0.85);
   });
 
   return (
@@ -218,8 +261,8 @@ const EdgeComponent: React.FC<{
       <EdgePulse offset={0.33} opacity={opacityTarget * 0.82} />
       <EdgePulse offset={0.66} opacity={opacityTarget * 0.65} />
 
-      <ComponentNode component={client} position={[0, -1.65, 0]} opacity={opacityTarget} pulseOffset={0.1} />
-      <ComponentNode component={dns} position={[0, 1.65, 0]} opacity={opacityTarget} pulseOffset={0.9} />
+      <ComponentNode component={client} position={[0, -1.65, 0]} opacity={opacityTarget} pulseOffset={0.1} mergeLockRef={mergeLockRef} />
+      <ComponentNode component={dns} position={[0, 1.65, 0]} opacity={opacityTarget} pulseOffset={0.9} mergeLockRef={mergeLockRef} />
 
       <Html position={[1.35, 0, 0]} center style={{ pointerEvents: 'none' }}>
         <div
@@ -304,7 +347,8 @@ const WebAppPacket: React.FC<{
 const WebAppComponent: React.FC<{
   scaleRef: React.MutableRefObject<number>;
   opacityTarget: number;
-}> = ({ scaleRef, opacityTarget }) => {
+  mergeLockRef?: React.MutableRefObject<number>;
+}> = ({ scaleRef, opacityTarget, mergeLockRef }) => {
   const groupRef = useRef<THREE.Group>(null);
   const client = getComponentData('CLIENT');
   const dns = getComponentData('DNS');
@@ -319,9 +363,10 @@ const WebAppComponent: React.FC<{
 
   useFrame((state) => {
     if (!groupRef.current) return;
-    const targetScale = 0.95 + scaleRef.current * 0.35;
+    const mergeLock = mergeLockRef?.current ?? 0;
+    const targetScale = 0.95 + scaleRef.current * 0.35 - mergeLock * 0.04;
     groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.12);
-    groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.28) * 0.12;
+    groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.28) * 0.12 * (1 - mergeLock * 0.8);
   });
 
   return (
@@ -344,10 +389,10 @@ const WebAppComponent: React.FC<{
       <WebAppPacket offset={0.5} opacity={opacityTarget * 0.68} path={path} />
       <WebAppPacket offset={0.75} opacity={opacityTarget * 0.52} path={path} />
 
-      <ComponentNode component={client} position={clientPos} opacity={opacityTarget} pulseOffset={0} />
-      <ComponentNode component={dns} position={dnsPos} opacity={opacityTarget} pulseOffset={0.45} />
-      <ComponentNode component={api} position={apiPos} opacity={opacityTarget} pulseOffset={0.9} />
-      <ComponentNode component={lb} position={lbPos} opacity={opacityTarget} pulseOffset={1.35} />
+      <ComponentNode component={client} position={clientPos} opacity={opacityTarget} pulseOffset={0} mergeLockRef={mergeLockRef} />
+      <ComponentNode component={dns} position={dnsPos} opacity={opacityTarget} pulseOffset={0.45} mergeLockRef={mergeLockRef} />
+      <ComponentNode component={api} position={apiPos} opacity={opacityTarget} pulseOffset={0.9} mergeLockRef={mergeLockRef} />
+      <ComponentNode component={lb} position={lbPos} opacity={opacityTarget} pulseOffset={1.35} mergeLockRef={mergeLockRef} />
 
       <Html position={[-2.95, 0, 0]} center style={{ pointerEvents: 'none' }}>
         <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-cyan-100/70" style={{ opacity: opacityTarget }}>
@@ -540,214 +585,6 @@ const BigExplosion: React.FC = () => {
     );
 };
 
-// --- MOLECULES AND HELPERS ---
-const waterVertexShader = `
-varying vec2 vUv; varying vec3 vNormal; varying vec3 vPosition;
-void main() { vUv = uv; vNormal = normalize(normalMatrix * normal); vPosition = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-`;
-const waterFragmentShader = `
-uniform float uTime; uniform vec3 uBaseColor; varying vec2 vUv; varying vec3 vNormal;
-float random (in vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123); }
-float noise (in vec2 st) { vec2 i = floor(st); vec2 f = fract(st); float a = random(i); float b = random(i + vec2(1.0, 0.0)); float c = random(i + vec2(0.0, 1.0)); float d = random(i + vec2(1.0, 1.0)); vec2 u = f * f * (3.0 - 2.0 * f); return mix(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y; }
-void main() { vec2 flowUv = vUv * 4.0; flowUv.y -= uTime * 0.5; float n = noise(flowUv); vec3 viewDir = vec3(0.0, 0.0, 1.0); float fresnel = pow(1.0 - dot(vNormal, viewDir), 2.0); vec3 color = uBaseColor; color += vec3(0.4) * smoothstep(0.4, 0.6, n); color += vec3(0.5, 0.8, 1.0) * fresnel; gl_FragColor = vec4(color, 0.85); }
-`;
-
-const H2OMolecule: React.FC<{ scaleRef?: React.MutableRefObject<number> }> = ({ scaleRef }) => {
-    const groupRef = useRef<THREE.Group>(null);
-    const waterUniforms = useMemo(() => ({ uTime: { value: 0 }, uBaseColor: { value: new THREE.Color('#22aaff') } }), []);
-    useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        const s = scaleRef ? (1.0 + scaleRef.current * 0.3) : 1.0;
-        if (groupRef.current) { groupRef.current.rotation.y = t * 0.5; groupRef.current.rotation.x = Math.sin(t * 0.5) * 0.1; groupRef.current.scale.set(1.5 * s, 1.5 * s, 1.5 * s); }
-        waterUniforms.uTime.value = t;
-    });
-    return (
-        <group ref={groupRef} scale={1.5}>
-            <mesh> <sphereGeometry args={[0.8, 64, 64]} /> <shaderMaterial vertexShader={waterVertexShader} fragmentShader={waterFragmentShader} uniforms={waterUniforms} transparent /> </mesh>
-            <mesh position={[0.7, 0.6, 0]}> <sphereGeometry args={[0.4, 32, 32]} /> <shaderMaterial vertexShader={waterVertexShader} fragmentShader={waterFragmentShader} uniforms={waterUniforms} transparent /> </mesh>
-            <mesh position={[-0.7, 0.6, 0]}> <sphereGeometry args={[0.4, 32, 32]} /> <shaderMaterial vertexShader={waterVertexShader} fragmentShader={waterFragmentShader} uniforms={waterUniforms} transparent /> </mesh>
-        </group>
-    );
-};
-
-const HClMolecule: React.FC<{ scaleRef?: React.MutableRefObject<number> }> = ({ scaleRef }) => {
-    const groupRef = useRef<THREE.Group>(null);
-    useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        const s = scaleRef ? (1.0 + scaleRef.current * 0.2) : 1.0;
-        if (groupRef.current) { groupRef.current.rotation.y = t * 0.5; groupRef.current.rotation.z = Math.sin(t * 0.3) * 0.1; groupRef.current.scale.set(s, s, s); }
-    });
-    return (
-        <group ref={groupRef}>
-            <mesh position={[0.8, 0, 0]}> <sphereGeometry args={[0.3, 32, 32]} /> <meshStandardMaterial color="#ffffff" roughness={0.2} metalness={0.1} emissive="#333333" /> </mesh>
-            <mesh position={[-0.4, 0, 0]}> <sphereGeometry args={[0.7, 32, 32]} /> <meshStandardMaterial color="#00ff00" roughness={0.3} metalness={0.2} transparent opacity={0.9} emissive="#003300" /> </mesh>
-            <mesh rotation={[0, 0, Math.PI / 2]} position={[0.2, 0, 0]}> <cylinderGeometry args={[0.1, 0.1, 1.2, 8]} /> <meshStandardMaterial color="#cccccc" /> </mesh>
-        </group>
-    );
-};
-
-const NH3Molecule: React.FC<{ scaleRef?: React.MutableRefObject<number> }> = ({ scaleRef }) => {
-    const groupRef = useRef<THREE.Group>(null);
-    useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        const s = scaleRef ? (1.0 + scaleRef.current * 0.2) : 1.0;
-        if (groupRef.current) { groupRef.current.rotation.y = t * 0.5; groupRef.current.rotation.x = Math.sin(t * 0.2) * 0.1; groupRef.current.scale.set(s, s, s); }
-    });
-    return (
-        <group ref={groupRef}>
-            <mesh position={[0, 0.2, 0]}> <sphereGeometry args={[0.6, 32, 32]} /> <meshStandardMaterial color="#0000ff" roughness={0.3} metalness={0.1} emissive="#000044" /> </mesh>
-            {[0, 120, 240].map((angle, i) => {
-                const rad = angle * (Math.PI / 180);
-                const x = Math.cos(rad) * 0.7; const z = Math.sin(rad) * 0.7;
-                return (
-                    <group key={i}>
-                         <mesh position={[x, -0.4, z]}> <sphereGeometry args={[0.3, 32, 32]} /> <meshStandardMaterial color="#ffffff" roughness={0.2} emissive="#444444" /> </mesh>
-                        <mesh position={[x/2, -0.1, z/2]} rotation={[0.5, -rad - Math.PI/2, 0]}> <cylinderGeometry args={[0.08, 0.08, 0.8, 8]} /> <meshStandardMaterial color="#cccccc" /> </mesh>
-                    </group>
-                )
-            })}
-        </group>
-    );
-};
-
-const Fe2O3Molecule: React.FC<{ scaleRef?: React.MutableRefObject<number> }> = ({ scaleRef }) => {
-    const groupRef = useRef<THREE.Group>(null);
-    useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        const s = scaleRef ? (1.0 + scaleRef.current * 0.2) : 1.0;
-        if (groupRef.current) { groupRef.current.rotation.y = t * 0.5; groupRef.current.rotation.z = Math.cos(t * 0.1) * 0.05; groupRef.current.scale.set(s, s, s); }
-    });
-    return (
-        <group ref={groupRef}>
-            <mesh position={[-0.6, 0, 0]}> <sphereGeometry args={[0.55, 32, 32]} /> <meshStandardMaterial color="#d45500" roughness={0.4} metalness={0.6} emissive="#441100" /> </mesh>
-            <mesh position={[0.6, 0, 0]}> <sphereGeometry args={[0.55, 32, 32]} /> <meshStandardMaterial color="#d45500" roughness={0.4} metalness={0.6} emissive="#441100" /> </mesh>
-            <mesh position={[0, 0.6, 0]}> <sphereGeometry args={[0.45, 32, 32]} /> <meshStandardMaterial color="#ff0000" roughness={0.3} emissive="#440000" /> </mesh>
-            <mesh position={[0, -0.6, 0]}> <sphereGeometry args={[0.45, 32, 32]} /> <meshStandardMaterial color="#ff0000" roughness={0.3} emissive="#440000" /> </mesh>
-            <mesh position={[0, 0, 0.6]}> <sphereGeometry args={[0.45, 32, 32]} /> <meshStandardMaterial color="#ff0000" roughness={0.3} emissive="#440000" /> </mesh>
-             <mesh position={[-0.3, 0.3, 0]} rotation={[0, 0, -0.8]}> <cylinderGeometry args={[0.08, 0.08, 0.9, 8]} /> <meshStandardMaterial color="#888888" /> </mesh>
-             <mesh position={[0.3, 0.3, 0]} rotation={[0, 0, 0.8]}> <cylinderGeometry args={[0.08, 0.08, 0.9, 8]} /> <meshStandardMaterial color="#888888" /> </mesh>
-            <mesh position={[-0.3, -0.3, 0]} rotation={[0, 0, 0.8]}> <cylinderGeometry args={[0.08, 0.08, 0.9, 8]} /> <meshStandardMaterial color="#888888" /> </mesh>
-             <mesh position={[0.3, -0.3, 0]} rotation={[0, 0, -0.8]}> <cylinderGeometry args={[0.08, 0.08, 0.9, 8]} /> <meshStandardMaterial color="#888888" /> </mesh>
-        </group>
-    );
-};
-
-const CaCl2Molecule: React.FC<{ scaleRef?: React.MutableRefObject<number> }> = ({ scaleRef }) => {
-    const groupRef = useRef<THREE.Group>(null);
-    useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        const s = scaleRef ? (1.0 + scaleRef.current * 0.2) : 1.0;
-        if (groupRef.current) { groupRef.current.rotation.y = t * 0.5; groupRef.current.rotation.x = t * 0.1; groupRef.current.scale.set(s, s, s); }
-    });
-    return (
-        <group ref={groupRef}>
-            <mesh position={[0, 0, 0]}> <sphereGeometry args={[0.65, 32, 32]} /> <meshStandardMaterial color="#aaaaaa" roughness={0.3} metalness={0.4} emissive="#222222" /> </mesh>
-            <mesh position={[1.2, 0, 0]}> <sphereGeometry args={[0.55, 32, 32]} /> <meshStandardMaterial color="#00ff00" roughness={0.3} transparent opacity={0.9} emissive="#003300" /> </mesh>
-            <mesh position={[-1.2, 0, 0]}> <sphereGeometry args={[0.55, 32, 32]} /> <meshStandardMaterial color="#00ff00" roughness={0.3} transparent opacity={0.9} emissive="#003300" /> </mesh>
-             <mesh position={[0.6, 0, 0]} rotation={[0, 0, 1.57]}> <cylinderGeometry args={[0.1, 0.1, 1.2, 8]} /> <meshStandardMaterial color="#cccccc" /> </mesh>
-            <mesh position={[-0.6, 0, 0]} rotation={[0, 0, 1.57]}> <cylinderGeometry args={[0.1, 0.1, 1.2, 8]} /> <meshStandardMaterial color="#cccccc" /> </mesh>
-        </group>
-    );
-};
-
-const NO2Molecule: React.FC<{ scaleRef?: React.MutableRefObject<number> }> = ({ scaleRef }) => {
-    const groupRef = useRef<THREE.Group>(null);
-    useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        const s = scaleRef ? (1.0 + scaleRef.current * 0.2) : 1.0;
-        if (groupRef.current) { groupRef.current.rotation.y = t * 0.5; groupRef.current.scale.set(s, s, s); }
-    });
-    return (
-        <group ref={groupRef}>
-            <mesh position={[0, 0.3, 0]}> <sphereGeometry args={[0.5, 32, 32]} /> <meshStandardMaterial color="#0000ff" roughness={0.3} emissive="#000044" /> </mesh>
-            <mesh position={[0.9, -0.4, 0]}> <sphereGeometry args={[0.45, 32, 32]} /> <meshStandardMaterial color="#ff0000" roughness={0.3} emissive="#440000" /> </mesh>
-            <mesh position={[-0.9, -0.4, 0]}> <sphereGeometry args={[0.45, 32, 32]} /> <meshStandardMaterial color="#ff0000" roughness={0.3} emissive="#440000" /> </mesh>
-             <mesh position={[0.45, -0.05, 0]} rotation={[0, 0, -0.8]}> <cylinderGeometry args={[0.1, 0.1, 1.0, 8]} /> <meshStandardMaterial color="#888888" /> </mesh>
-            <mesh position={[-0.45, -0.05, 0]} rotation={[0, 0, 0.8]}> <cylinderGeometry args={[0.1, 0.1, 1.0, 8]} /> <meshStandardMaterial color="#888888" /> </mesh>
-        </group>
-    );
-};
-
-const H2CO3Molecule: React.FC<{ scaleRef?: React.MutableRefObject<number> }> = ({ scaleRef }) => {
-    const groupRef = useRef<THREE.Group>(null);
-    useFrame((state) => {
-        const t = state.clock.getElapsedTime();
-        const s = scaleRef ? (1.0 + scaleRef.current * 0.2) : 1.0;
-        if (groupRef.current) { 
-            groupRef.current.rotation.y = t * 0.5; 
-            groupRef.current.rotation.x = Math.sin(t * 0.2) * 0.1;
-            groupRef.current.scale.set(s, s, s); 
-        }
-    });
-
-    return (
-        <group ref={groupRef}>
-            {/* Carbon Center (Black/Grey) */}
-            <mesh position={[0, 0, 0]}>
-                <sphereGeometry args={[0.45, 32, 32]} />
-                <meshStandardMaterial color="#333333" roughness={0.3} />
-            </mesh>
-
-            {/* Top Oxygen (Double Bonded, Red) */}
-            <mesh position={[0, 0.8, 0]}>
-                <sphereGeometry args={[0.4, 32, 32]} />
-                <meshStandardMaterial color="#ff0000" roughness={0.3} emissive="#440000" />
-            </mesh>
-            {/* Double Bond connectors */}
-            <mesh position={[-0.12, 0.4, 0]}>
-                <cylinderGeometry args={[0.06, 0.06, 0.8, 8]} />
-                <meshStandardMaterial color="#cccccc" />
-            </mesh>
-            <mesh position={[0.12, 0.4, 0]}>
-                <cylinderGeometry args={[0.06, 0.06, 0.8, 8]} />
-                <meshStandardMaterial color="#cccccc" />
-            </mesh>
-
-            {/* Left Oxygen (Single Bonded, Red) */}
-            <mesh position={[-0.7, -0.5, 0]}>
-                <sphereGeometry args={[0.4, 32, 32]} />
-                <meshStandardMaterial color="#ff0000" roughness={0.3} emissive="#440000" />
-            </mesh>
-             {/* Left C-O Bond */}
-            <mesh position={[-0.35, -0.25, 0]} rotation={[0, 0, -2.1]}>
-                 <cylinderGeometry args={[0.08, 0.08, 0.8, 8]} />
-                 <meshStandardMaterial color="#cccccc" />
-            </mesh>
-            {/* Left Hydrogen (White) */}
-            <mesh position={[-1.1, -0.7, 0]}>
-                 <sphereGeometry args={[0.25, 32, 32]} />
-                 <meshStandardMaterial color="#ffffff" />
-            </mesh>
-             {/* Left O-H Bond */}
-            <mesh position={[-0.9, -0.6, 0]} rotation={[0, 0, -2.5]}>
-                 <cylinderGeometry args={[0.05, 0.05, 0.5, 8]} />
-                 <meshStandardMaterial color="#cccccc" />
-            </mesh>
-
-            {/* Right Oxygen (Single Bonded, Red) */}
-            <mesh position={[0.7, -0.5, 0]}>
-                <sphereGeometry args={[0.4, 32, 32]} />
-                <meshStandardMaterial color="#ff0000" roughness={0.3} emissive="#440000" />
-            </mesh>
-            {/* Right C-O Bond */}
-            <mesh position={[0.35, -0.25, 0]} rotation={[0, 0, 2.1]}>
-                 <cylinderGeometry args={[0.08, 0.08, 0.8, 8]} />
-                 <meshStandardMaterial color="#cccccc" />
-            </mesh>
-             {/* Right Hydrogen (White) */}
-             <mesh position={[1.1, -0.7, 0]}>
-                 <sphereGeometry args={[0.25, 32, 32]} />
-                 <meshStandardMaterial color="#ffffff" />
-            </mesh>
-             {/* Right O-H Bond */}
-            <mesh position={[0.9, -0.6, 0]} rotation={[0, 0, 2.5]}>
-                 <cylinderGeometry args={[0.05, 0.05, 0.5, 8]} />
-                 <meshStandardMaterial color="#cccccc" />
-            </mesh>
-        </group>
-    );
-};
-
 // --- BURST SHADERS ---
 const burstVertexShader = `
 uniform float uTime;
@@ -809,103 +646,422 @@ const CollisionBurst: React.FC<{ color: string }> = ({ color }) => {
     )
 }
 
+// --- PIN INDICATOR ---
+const PinIndicator: React.FC = () => {
+  const ringRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    if (!ringRef.current) return;
+    const pulse = 1 + Math.sin(state.clock.elapsedTime * 5) * 0.06;
+    ringRef.current.scale.setScalar(pulse);
+  });
+
+  return (
+    <>
+      <mesh ref={ringRef}>
+        <torusGeometry args={[0.92, 0.03, 12, 72]} />
+        <meshBasicMaterial color="#00ffff" transparent opacity={0.95} />
+      </mesh>
+      <mesh>
+        <torusGeometry args={[1.08, 0.012, 8, 72]} />
+        <meshBasicMaterial color="#00ffff" transparent opacity={0.3} />
+      </mesh>
+      <Html position={[0, 1.45, 0]} center style={{ pointerEvents: 'none' }}>
+        <div className="font-['Orbitron'] text-[9px] font-bold tracking-[0.3em] text-cyan-300"
+          style={{ textShadow: '0 0 8px rgba(0,255,255,0.9)' }}>
+          LOCKED
+        </div>
+      </Html>
+    </>
+  );
+};
+
+const MergeLockCore: React.FC<{
+  leftColor: string;
+  rightColor: string;
+  strengthRef: React.MutableRefObject<number>;
+}> = ({ leftColor, rightColor, strengthRef }) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const shellRef = useRef<THREE.Mesh>(null);
+  const innerRingRef = useRef<THREE.Mesh>(null);
+  const coreMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const shellMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const ringMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const mixedColor = useMemo(
+    () => new THREE.Color(leftColor).lerp(new THREE.Color(rightColor), 0.5),
+    [leftColor, rightColor]
+  );
+
+  useFrame((state) => {
+    const strength = strengthRef.current;
+    if (groupRef.current) {
+      const pulse = 1 + Math.sin(state.clock.elapsedTime * 6.5) * 0.05;
+      const scale = THREE.MathUtils.lerp(0.84, 1.18, strength) * pulse;
+      groupRef.current.scale.lerp(new THREE.Vector3(scale, scale, scale), 0.16);
+    }
+    if (coreRef.current) {
+      coreRef.current.rotation.y += 0.01 * (0.2 + strength * 0.8);
+    }
+    if (shellRef.current) {
+      shellRef.current.rotation.z += 0.012 * (0.2 + strength * 0.8);
+      shellRef.current.rotation.x += 0.008 * (0.2 + strength * 0.8);
+    }
+    if (innerRingRef.current) {
+      innerRingRef.current.rotation.y -= 0.015 * (0.2 + strength * 0.8);
+      innerRingRef.current.rotation.z += 0.008 * (0.2 + strength * 0.8);
+    }
+    if (coreMaterialRef.current) {
+      coreMaterialRef.current.opacity = THREE.MathUtils.lerp(coreMaterialRef.current.opacity, strength * 0.92, 0.16);
+      coreMaterialRef.current.emissiveIntensity = THREE.MathUtils.lerp(coreMaterialRef.current.emissiveIntensity, 0.25 + strength * 1.35, 0.16);
+      coreMaterialRef.current.color.lerp(mixedColor, 0.16);
+      coreMaterialRef.current.emissive.lerp(mixedColor, 0.16);
+    }
+    if (shellMaterialRef.current) {
+      shellMaterialRef.current.opacity = THREE.MathUtils.lerp(shellMaterialRef.current.opacity, strength * 0.42, 0.16);
+      shellMaterialRef.current.color.lerp(mixedColor, 0.16);
+    }
+    if (ringMaterialRef.current) {
+      ringMaterialRef.current.opacity = THREE.MathUtils.lerp(ringMaterialRef.current.opacity, strength * 0.78, 0.16);
+      ringMaterialRef.current.color.lerp(mixedColor, 0.16);
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      <mesh ref={coreRef}>
+        <sphereGeometry args={[0.46, 28, 28]} />
+        <meshStandardMaterial
+          ref={coreMaterialRef}
+          color={mixedColor}
+          emissive={mixedColor}
+          emissiveIntensity={0.25}
+          roughness={0.18}
+          metalness={0.12}
+          transparent
+          opacity={0}
+        />
+      </mesh>
+      <mesh ref={shellRef}>
+        <torusGeometry args={[0.74, 0.024, 12, 96]} />
+        <meshBasicMaterial ref={shellMaterialRef} color={mixedColor} transparent opacity={0} />
+      </mesh>
+      <mesh ref={innerRingRef}>
+        <torusGeometry args={[0.58, 0.012, 8, 72]} />
+        <meshBasicMaterial ref={ringMaterialRef} color="#ffffff" transparent opacity={0} />
+      </mesh>
+    </group>
+  );
+};
+
 // --- SCENE CONTENT ---
-const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combinedElement, trackingData }) => {
+const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combinedElement, trackingData, pinnedHand, pinnedPosRef, interactionCooldownUntilRef, onOverlapMerge, onOverlapChange }) => {
   const leftGroupRef = useRef<THREE.Group>(null);
   const rightGroupRef = useRef<THREE.Group>(null);
   const combinedGroupRef = useRef<THREE.Group>(null);
-  
+  const mergeCoreGroupRef = useRef<THREE.Group>(null);
+
   const leftPinchRef = useRef(0.0);
   const rightPinchRef = useRef(0.0);
   const combinedPinchRef = useRef(0.8);
 
-  const [opacities, setOpacities] = useState({ left: 1, right: 1, combined: 0 });
   const [showBurst, setShowBurst] = useState(false);
+  const [isSourceMergeLocked, setIsSourceMergeLocked] = useState(false);
 
-  const lastLeftPos = useRef({ x: 0, y: 0 });
-  const lastRightPos = useRef({ x: 0, y: 0 });
-  const leftRotationSpeed = useRef(0.005);
-  const rightRotationSpeed = useRef(0.005);
+  // Pre-smoothed hand positions — eliminates tracking jitter before 3D lerp
+  const smoothedLeftPos = useRef(new THREE.Vector3(-4, 0, 0));
+  const smoothedRightPos = useRef(new THREE.Vector3(4, 0, 0));
+
+  // Combine animation state tracked in refs (no re-renders per frame)
+  const combineProgressRef = useRef(0);
+  const wasCombinedRef = useRef(false);
+  const burstFiredRef = useRef(false);
+
+  // Overlap-based auto-merge refs
+  const overlapTimerRef = useRef(0);
+  const mergeFiredRef = useRef(false);
+  const overlapActiveRef = useRef(false);
+  const mergeLockCenterRef = useRef<THREE.Vector3 | null>(null);
+  const mergeLockTimeoutRef = useRef(0);
+  const mergeLockVisualRef = useRef(false);
+  const mergeVisualStrengthRef = useRef(0);
+  const activePinnedHandRef = useRef<'left' | 'right' | null>(null);
+  const pinnedWorldPosRef = useRef<THREE.Vector3 | null>(null);
 
   useEffect(() => {
-    if (combinedElement) {
-        setOpacities({ left: 0, right: 0, combined: 1 });
-        // Only show simple burst if not a huge explosion
-        if (combinedElement.symbol !== 'BOOM') {
-            setShowBurst(true);
-            const t = setTimeout(() => setShowBurst(false), 1000);
-            return () => clearTimeout(t);
-        }
-    } else {
-        setOpacities({ left: 1, right: 1, combined: 0 });
-        setShowBurst(false);
+    if (!combinedElement) {
+      setShowBurst(false);
+      setIsSourceMergeLocked(false);
+      burstFiredRef.current = false;
+      overlapTimerRef.current = 0;
+      mergeFiredRef.current = false;
+      overlapActiveRef.current = false;
+      mergeLockCenterRef.current = null;
+      mergeLockTimeoutRef.current = 0;
+      mergeLockVisualRef.current = false;
+      mergeVisualStrengthRef.current = 0;
     }
+    // Burst timing is driven from useFrame to sync precisely with the collapse
   }, [combinedElement]);
 
-  useFrame((state) => {
+  useFrame((_state, delta) => {
     const data = trackingData.current;
-    leftPinchRef.current = combinedElement ? 0 : data.left.pinchDistance;
-    rightPinchRef.current = combinedElement ? 0 : data.right.pinchDistance;
-    const mapX = (x: number) => (x - 0.5) * 18; 
+    const isCombined = combinedElement !== null;
+    const isFullSystemDesign = (combinedElement?.level ?? 0) >= 3;
+    const interactionsPaused = Date.now() < interactionCooldownUntilRef.current;
+
+    // Detect new combine event and reset progress
+    if (isCombined && !wasCombinedRef.current) {
+      const leftPos = leftGroupRef.current?.position.clone();
+      const rightPos = rightGroupRef.current?.position.clone();
+      const combineCenter = isFullSystemDesign
+        ? SCENE_ORIGIN.clone()
+        : mergeLockCenterRef.current?.clone()
+        ?? (leftPos && rightPos
+          ? leftPos.lerp(rightPos, 0.5)
+          : leftPos
+            ?? rightPos
+            ?? SCENE_ORIGIN.clone());
+
+      mergeLockCenterRef.current = combineCenter.clone();
+      combineProgressRef.current = 0;
+      burstFiredRef.current = false;
+
+      // Spawn the merged result exactly where the two source nodes met so it
+      // does not flash at a stale/default position before settling.
+      if (combinedGroupRef.current) {
+        combinedGroupRef.current.position.copy(combineCenter);
+        combinedGroupRef.current.scale.setScalar(0);
+      }
+    }
+    wasCombinedRef.current = isCombined;
+
+    // Advance combine animation progress (0 → 1 over ~450ms)
+    if (isCombined) {
+      combineProgressRef.current = Math.min(1, combineProgressRef.current + delta * 2.2);
+    } else {
+      combineProgressRef.current = 0;
+    }
+    const prog = combineProgressRef.current;
+
+    // Fire collision burst once hands have fully met (~100ms into collapse)
+    if (isCombined && prog > 0.22 && !burstFiredRef.current && combinedElement?.symbol !== 'BOOM') {
+      burstFiredRef.current = true;
+      setShowBurst(true);
+      setTimeout(() => setShowBurst(false), 1000);
+    }
+
+    const mapX = (x: number) => (x - 0.5) * 18;
     const mapY = (y: number) => -(y - 0.5) * 10;
+    const unmapX = (x: number) => THREE.MathUtils.clamp(x / 18 + 0.5, 0, 1);
+    const unmapY = (y: number) => THREE.MathUtils.clamp(-y / 10 + 0.5, 0, 1);
+
+    // When a pin is created, freeze it at the element's current rendered position
+    // rather than the raw tracked hand position. That prevents a post-lock drift
+    // if the user immediately takes their hand off-screen.
+    if (pinnedHand !== activePinnedHandRef.current) {
+      activePinnedHandRef.current = pinnedHand;
+
+      if (!pinnedHand) {
+        pinnedWorldPosRef.current = null;
+      } else {
+        const pinnedGroup = pinnedHand === 'left' ? leftGroupRef.current : rightGroupRef.current;
+        const fallbackPinnedPos = pinnedPosRef.current
+          ? new THREE.Vector3(mapX(pinnedPosRef.current.x), mapY(pinnedPosRef.current.y), 0)
+          : null;
+        const lockedWorldPos = pinnedGroup?.position.clone() ?? fallbackPinnedPos;
+
+        pinnedWorldPosRef.current = lockedWorldPos;
+
+        if (lockedWorldPos) {
+          pinnedPosRef.current = {
+            x: unmapX(lockedWorldPos.x),
+            y: unmapY(lockedWorldPos.y),
+          };
+        }
+      }
+    }
+
+    // Compute free 3D targets; overlap-lock can later override these to a shared midpoint.
+    const pinnedPos = pinnedPosRef.current;
+    const pinnedWorldPos = pinnedWorldPosRef.current;
+    const trackedLeft = new THREE.Vector3(mapX(data.left.position.x), mapY(data.left.position.y), 0);
+    const trackedRight = new THREE.Vector3(mapX(data.right.position.x), mapY(data.right.position.y), 0);
+    const freeLeft = pinnedHand === 'left' && pinnedPos
+      ? (pinnedWorldPos?.clone() ?? new THREE.Vector3(mapX(pinnedPos.x), mapY(pinnedPos.y), 0))
+      : trackedLeft;
+    const freeRight = pinnedHand === 'right' && pinnedPos
+      ? (pinnedWorldPos?.clone() ?? new THREE.Vector3(mapX(pinnedPos.x), mapY(pinnedPos.y), 0))
+      : trackedRight;
+
+    // Predict the next free positions so the overlap test matches the visible motion on screen.
+    const predictedLeft = smoothedLeftPos.current.clone().lerp(freeLeft, 0.2);
+    const predictedRight = smoothedRightPos.current.clone().lerp(freeRight, 0.2);
+
+    // --- OVERLAP AUTO-MERGE + CENTER LOCK ---
+    if (!isCombined && !interactionsPaused) {
+      const currentLockCenter = mergeLockCenterRef.current;
+      const isOverlapping = Boolean(currentLockCenter) || predictedLeft.distanceTo(predictedRight) < OVERLAP_THRESHOLD;
+
+      // Notify App only when overlap state changes (not every frame)
+      if (isOverlapping !== overlapActiveRef.current) {
+        overlapActiveRef.current = isOverlapping;
+        onOverlapChange?.(isOverlapping);
+      }
+
+      if (isOverlapping) {
+        if (!currentLockCenter) {
+          const visibleLeft = leftGroupRef.current?.position.clone() ?? predictedLeft;
+          const visibleRight = rightGroupRef.current?.position.clone() ?? predictedRight;
+          mergeLockCenterRef.current = visibleLeft.lerp(visibleRight, 0.5);
+          mergeLockTimeoutRef.current = 0;
+        }
+
+        overlapTimerRef.current = Math.min(OVERLAP_HOLD, overlapTimerRef.current + delta);
+
+        if (overlapTimerRef.current >= OVERLAP_HOLD && !mergeFiredRef.current) {
+          mergeFiredRef.current = true;
+          mergeLockTimeoutRef.current = 0;
+          onOverlapMerge?.();
+        }
+
+        if (mergeFiredRef.current) {
+          mergeLockTimeoutRef.current += delta;
+
+          // Failed merges leave combinedElement as null, so release the visual lock but
+          // keep mergeFiredRef set until the user separates the components again.
+          if (mergeLockTimeoutRef.current >= MERGE_LOCK_TIMEOUT) {
+            mergeLockCenterRef.current = null;
+          }
+        }
+      } else {
+        overlapTimerRef.current = 0;
+        mergeFiredRef.current = false;
+        mergeLockTimeoutRef.current = 0;
+        mergeLockCenterRef.current = null;
+      }
+    } else if (interactionsPaused) {
+      if (overlapActiveRef.current) {
+        overlapActiveRef.current = false;
+        onOverlapChange?.(false);
+      }
+      overlapTimerRef.current = 0;
+      mergeFiredRef.current = false;
+      mergeLockTimeoutRef.current = 0;
+      mergeLockCenterRef.current = null;
+    }
+
+    const mergeCenter = mergeLockCenterRef.current;
+    const isMergeLocked = Boolean(mergeCenter);
+    const combinedDisplayCenter = isFullSystemDesign
+      ? SCENE_ORIGIN
+      : (mergeCenter ?? SCENE_ORIGIN);
+    const mergeVisualTarget = isCombined
+      ? 1 - THREE.MathUtils.smoothstep(prog, 0.35, 1.0)
+      : (isMergeLocked ? 1 : 0);
+    mergeVisualStrengthRef.current = THREE.MathUtils.lerp(
+      mergeVisualStrengthRef.current,
+      mergeVisualTarget,
+      isCombined ? 0.16 : 0.14
+    );
+    if (isMergeLocked !== mergeLockVisualRef.current) {
+      mergeLockVisualRef.current = isMergeLocked;
+      setIsSourceMergeLocked(isMergeLocked);
+    }
+    leftPinchRef.current = isCombined || isMergeLocked ? 0 : data.left.pinchDistance;
+    rightPinchRef.current = isCombined || isMergeLocked ? 0 : data.right.pinchDistance;
+    const rawLeft = isCombined
+      ? combinedDisplayCenter.clone()
+      : (mergeCenter?.clone() ?? freeLeft);
+    const rawRight = isCombined
+      ? combinedDisplayCenter.clone()
+      : (mergeCenter?.clone() ?? freeRight);
+    const targetSmoothing = isCombined ? 0.15 : 0.2;
+    const positionSmoothing = isCombined ? 0.18 : 0.18;
+
+    if (mergeCenter) {
+      // Once overlap lock engages, both sources share one authoritative center.
+      // Copying directly avoids the "almost merged" jitter that comes from easing
+      // two separate animated groups toward the same target.
+      smoothedLeftPos.current.copy(mergeCenter);
+      smoothedRightPos.current.copy(mergeCenter);
+    } else {
+      // First-pass smoothing on the target itself removes frame-to-frame tracking jitter.
+      smoothedLeftPos.current.lerp(rawLeft, targetSmoothing);
+      smoothedRightPos.current.lerp(rawRight, targetSmoothing);
+    }
 
     if (leftGroupRef.current) {
-        let targetPos = new THREE.Vector3(0,0,0);
-        if (combinedElement) targetPos.set(0, 0, 0);
-        else targetPos.set(mapX(data.left.position.x), mapY(data.left.position.y), 0);
-        leftGroupRef.current.position.lerp(targetPos, 0.12);
-        const dx = data.left.position.x - lastLeftPos.current.x;
-        if (!combinedElement) {
-           leftRotationSpeed.current = THREE.MathUtils.lerp(leftRotationSpeed.current, 0.005 + (dx * 1.5), 0.1);
-        }
-        leftGroupRef.current.rotation.y += leftRotationSpeed.current;
+      if (mergeCenter) {
+        leftGroupRef.current.position.copy(mergeCenter);
+      } else {
+        leftGroupRef.current.position.lerp(smoothedLeftPos.current, positionSmoothing);
+      }
+      // Freeze source spin while lock is active so the center reads as one fused core.
+      if (!mergeCenter && !isCombined) {
+        leftGroupRef.current.rotation.y += 0.008;
         leftGroupRef.current.rotation.z += 0.002;
-        lastLeftPos.current = { x: data.left.position.x, y: data.left.position.y };
+      }
+      // Smooth scale-out during collapse; instant restore when reset
+      leftGroupRef.current.scale.setScalar(
+        isCombined ? 1 - THREE.MathUtils.smoothstep(prog, 0, 0.4) : 1
+      );
     }
 
     if (rightGroupRef.current) {
-        let targetPos = new THREE.Vector3(0,0,0);
-        if (combinedElement) targetPos.set(0, 0, 0);
-        else targetPos.set(mapX(data.right.position.x), mapY(data.right.position.y), 0);
-        rightGroupRef.current.position.lerp(targetPos, 0.12);
-        const dx = data.right.position.x - lastRightPos.current.x;
-        if (!combinedElement) {
-            rightRotationSpeed.current = THREE.MathUtils.lerp(rightRotationSpeed.current, -0.005 + (dx * 1.5), 0.1);
-        }
-        rightGroupRef.current.rotation.y += rightRotationSpeed.current;
+      if (mergeCenter) {
+        rightGroupRef.current.position.copy(mergeCenter);
+      } else {
+        rightGroupRef.current.position.lerp(smoothedRightPos.current, positionSmoothing);
+      }
+      if (!mergeCenter && !isCombined) {
+        rightGroupRef.current.rotation.y -= 0.008;
         rightGroupRef.current.rotation.z -= 0.002;
-        lastRightPos.current = { x: data.right.position.x, y: data.right.position.y };
+      }
+      rightGroupRef.current.scale.setScalar(
+        isCombined ? 1 - THREE.MathUtils.smoothstep(prog, 0, 0.4) : 1
+      );
+    }
+
+    if (mergeCoreGroupRef.current) {
+      const mergeCoreVisible = mergeVisualStrengthRef.current > 0.02;
+      mergeCoreGroupRef.current.visible = mergeCoreVisible;
+      mergeCoreGroupRef.current.position.copy(combinedDisplayCenter);
+      mergeCoreGroupRef.current.scale.setScalar(mergeCoreVisible ? 1 : 0.0001);
+    }
+
+    if (combinedGroupRef.current) {
+      combinedGroupRef.current.position.lerp(combinedDisplayCenter, isCombined ? 0.24 : 0.12);
+      // BOOM appears instantly; everything else scales in after hands collapse
+      const combinedScale = !isCombined
+        ? 0
+        : combinedElement?.symbol === 'BOOM'
+          ? 1
+          : THREE.MathUtils.smoothstep(prog, 0.3, 1.0);
+      combinedGroupRef.current.scale.setScalar(combinedScale);
     }
   });
 
   const renderElement = (element: ElementData, scaleRef: React.MutableRefObject<number>, opacity: number, isActive: boolean) => {
     if (element.symbol === 'WEBAPP') {
-        return <WebAppComponent scaleRef={scaleRef} opacityTarget={opacity} />;
+        return <WebAppComponent scaleRef={scaleRef} opacityTarget={opacity} mergeLockRef={mergeVisualStrengthRef} />;
     }
 
     if (element.symbol === 'EDGE') {
-        return <EdgeComponent scaleRef={scaleRef} opacityTarget={opacity} />;
+        return <EdgeComponent scaleRef={scaleRef} opacityTarget={opacity} mergeLockRef={mergeVisualStrengthRef} />;
     }
 
     if (element.symbol === 'ROUTE') {
-        return <RouteComponent scaleRef={scaleRef} opacityTarget={opacity} />;
+        return <RouteComponent scaleRef={scaleRef} opacityTarget={opacity} mergeLockRef={mergeVisualStrengthRef} />;
     }
 
-    if (element.symbol === 'H2O' && !combinedElement) return <H2OMolecule scaleRef={scaleRef} />;
-    if (element.symbol === 'NaCl' && !combinedElement) return <SaltLattice scaleRef={scaleRef} />;
-    if (element.symbol === 'HCl' && !combinedElement) return <HClMolecule scaleRef={scaleRef} />;
-    if (element.symbol === 'NH3' && !combinedElement) return <NH3Molecule scaleRef={scaleRef} />;
-    if (element.symbol === 'Fe2O3' && !combinedElement) return <Fe2O3Molecule scaleRef={scaleRef} />;
-    if (element.symbol === 'CaCl2' && !combinedElement) return <CaCl2Molecule scaleRef={scaleRef} />;
-    if (element.symbol === 'NO2' && !combinedElement) return <NO2Molecule scaleRef={scaleRef} />;
-    if (element.symbol === 'H2CO3' && !combinedElement) return <H2CO3Molecule scaleRef={scaleRef} />;
-    
     return (
         <ParticleSphere 
             element={element} 
             scaleRef={scaleRef}
             opacityTarget={opacity}
             isActive={isActive}
+            mergeLockRef={mergeVisualStrengthRef}
         />
     );
   };
@@ -916,51 +1072,30 @@ const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combine
     if (combinedElement.symbol === 'BOOM') return <BigExplosion />;
 
     if (combinedElement.symbol === 'WEBAPP') {
-        return <WebAppComponent scaleRef={combinedPinchRef} opacityTarget={opacities.combined} />;
+        return <WebAppComponent scaleRef={combinedPinchRef} opacityTarget={1} mergeLockRef={mergeVisualStrengthRef} />;
     }
 
     if (combinedElement.symbol === 'EDGE') {
-        return <EdgeComponent scaleRef={combinedPinchRef} opacityTarget={opacities.combined} />;
+        return <EdgeComponent scaleRef={combinedPinchRef} opacityTarget={1} mergeLockRef={mergeVisualStrengthRef} />;
     }
 
     if (combinedElement.symbol === 'ROUTE') {
-        return <RouteComponent scaleRef={combinedPinchRef} opacityTarget={opacities.combined} />;
-    }
-
-    if (combinedElement.symbol === 'H2O') {
-        return <WaterSimulation trackingRef={trackingData} />;
-    }
-    if (combinedElement.symbol === 'NaCl') {
-        return <SaltPile />;
-    }
-    if (combinedElement.symbol === 'HCl') {
-        return <HClMolecule scaleRef={combinedPinchRef} />;
-    }
-    if (combinedElement.symbol === 'NH3') {
-        return <NH3Molecule scaleRef={combinedPinchRef} />;
-    }
-    if (combinedElement.symbol === 'Fe2O3') {
-        return <Fe2O3Molecule scaleRef={combinedPinchRef} />;
-    }
-    if (combinedElement.symbol === 'CaCl2') {
-        return <CaCl2Molecule scaleRef={combinedPinchRef} />;
-    }
-    if (combinedElement.symbol === 'NO2') {
-        return <NO2Molecule scaleRef={combinedPinchRef} />;
-    }
-    if (combinedElement.symbol === 'H2CO3') {
-        return <H2CO3Molecule scaleRef={combinedPinchRef} />;
+        return <RouteComponent scaleRef={combinedPinchRef} opacityTarget={1} mergeLockRef={mergeVisualStrengthRef} />;
     }
 
     return (
-        <ParticleSphere 
-            element={combinedElement} 
+        <ParticleSphere
+            element={combinedElement}
             scaleRef={combinedPinchRef}
-            opacityTarget={opacities.combined}
+            opacityTarget={1}
             isActive={true}
+            mergeLockRef={mergeVisualStrengthRef}
         />
     );
   };
+
+  const sourceOpacity = isSourceMergeLocked && !combinedElement ? 0.82 : 1;
+  const showSourceLabels = !combinedElement && !isSourceMergeLocked;
 
   return (
     <>
@@ -971,14 +1106,24 @@ const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combine
       
       {showBurst && <CollisionBurst color={combinedElement ? combinedElement.color : '#ffffff'} />}
 
+      <group ref={mergeCoreGroupRef} visible={false}>
+        <MergeLockCore
+          leftColor={leftElement.color}
+          rightColor={rightElement.color}
+          strengthRef={mergeVisualStrengthRef}
+        />
+      </group>
+
       <group ref={leftGroupRef}>
-         {renderElement(leftElement, leftPinchRef, opacities.left, !combinedElement)}
-         {!combinedElement && <AtomLabel element={leftElement} position={[0, -1.2, 0]} />}
+         {renderElement(leftElement, leftPinchRef, sourceOpacity, !combinedElement)}
+         {showSourceLabels && <AtomLabel element={leftElement} position={[0, -1.2, 0]} />}
+         {showSourceLabels && pinnedHand === 'left' && <PinIndicator />}
       </group>
 
       <group ref={rightGroupRef}>
-         {renderElement(rightElement, rightPinchRef, opacities.right, !combinedElement)}
-         {!combinedElement && <AtomLabel element={rightElement} position={[0, -1.2, 0]} />}
+         {renderElement(rightElement, rightPinchRef, sourceOpacity, !combinedElement)}
+         {showSourceLabels && <AtomLabel element={rightElement} position={[0, -1.2, 0]} />}
+         {showSourceLabels && pinnedHand === 'right' && <PinIndicator />}
       </group>
 
       <group ref={combinedGroupRef}>
@@ -989,14 +1134,12 @@ const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combine
   );
 };
 
-const Scene: React.FC<SceneProps> = (props) => {
-  return (
-    <Canvas dpr={[1, 2]} gl={{ alpha: true, antialias: true }}>
-      <PerspectiveCamera makeDefault position={[0, 0, 9]} fov={55} />
-      <SceneContent {...props} />
-      <OrbitControls enableZoom={false} enablePan={false} enableRotate={false} />
-    </Canvas>
-  );
-};
+const Scene: React.FC<SceneProps> = (props) => (
+  <Canvas dpr={[1, 2]} gl={{ alpha: true, antialias: true }}>
+    <PerspectiveCamera makeDefault position={[0, 0, 9]} fov={55} />
+    <SceneContent {...props} />
+    <OrbitControls enableZoom={false} enablePan={false} enableRotate={false} />
+  </Canvas>
+);
 
 export default Scene;

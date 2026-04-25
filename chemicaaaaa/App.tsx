@@ -10,6 +10,8 @@ import { TrackingData, ElementData, GameState } from './types';
 import successChime from './assets/sounds/success-chime.mp3';
 import softError from './assets/sounds/soft-error.mp3';
 
+const SESSION_RESET_KEYS = ['chemLabHistory', 'labSlots', 'labCreatedSlots'] as const;
+
 const App: React.FC = () => {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
@@ -48,49 +50,18 @@ const App: React.FC = () => {
   const [labSlots, setLabSlots] = useState<ElementData[]>([]); // Dashboard slots (8 manually selected)
   const [labCreatedSlots, setLabCreatedSlots] = useState<ElementData[]>([]); // Lab-created slots (8 auto-discovered)
 
-  // Load saved history and lab slots on mount
+  // Start each fresh app load from the default lab state.
+  // We still use localStorage during the current run for dashboard/shelf sync,
+  // but nothing carries over to the next session.
   useEffect(() => {
-    const validCreatedSymbols = new Set(COMBINATIONS.map(c => c.result.symbol));
-    const validBaseSymbols = new Set(ELEMENTS.map(e => e.symbol));
-    const validSymbols = new Set([...validBaseSymbols, ...validCreatedSymbols]);
-
-    const history = JSON.parse(localStorage.getItem('chemLabHistory') || '[]')
-      .filter((item: ElementData) => validSymbols.has(item.symbol));
-    setSavedElements(history);
-    localStorage.setItem('chemLabHistory', JSON.stringify(history));
-    
-    // Load dashboard slots (manually selected)
-    const savedSlots = localStorage.getItem('labSlots');
-    if (savedSlots) {
-      try {
-        const parsed = JSON.parse(savedSlots)
-          .filter((item: ElementData) => validSymbols.has(item.symbol));
-        setLabSlots(parsed);
-        localStorage.setItem('labSlots', JSON.stringify(parsed));
-        // Set initial elements from slots if available
-        if (parsed.length > 0) {
-          setLeftElement(parsed[0]);
-          if (parsed.length > 1) {
-            setRightElement(parsed[1]);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to parse saved slots', e);
-      }
-    }
-    
-    // Load lab-created slots (auto-discovered in lab)
-    const savedCreatedSlots = localStorage.getItem('labCreatedSlots');
-    if (savedCreatedSlots) {
-      try {
-        const parsed = JSON.parse(savedCreatedSlots)
-          .filter((item: ElementData) => validCreatedSymbols.has(item.symbol));
-        setLabCreatedSlots(parsed);
-        localStorage.setItem('labCreatedSlots', JSON.stringify(parsed));
-      } catch (e) {
-        console.error('Failed to parse lab created slots', e);
-      }
-    }
+    SESSION_RESET_KEYS.forEach(key => localStorage.removeItem(key));
+    setSavedElements([]);
+    setLabSlots([]);
+    setLabCreatedSlots([]);
+    setLeftElement(ELEMENTS[0]);
+    setRightElement(ELEMENTS[3]);
+    setCombinedElement(null);
+    setMessage("LAB READY");
   }, []);
 
   // Design Warning System
@@ -189,6 +160,8 @@ const App: React.FC = () => {
     isClapping: false,
     isResetGesture: false,
     isClosedFist: false,
+    leftIsFist: false,
+    rightIsFist: false,
     isSixtySevenGesture: false,
     handDistance: 1000,
     cameraAspect: 1.77
@@ -197,8 +170,17 @@ const App: React.FC = () => {
   const lastLeftHoverRef = useRef<string | null>(null);
   const lastRightHoverRef = useRef<string | null>(null);
 
-  const clapStartRef = useRef<number>(0);
-  const CLAP_DURATION_THRESHOLD = 800; 
+  // Pin gesture state
+  const [pinnedHand, setPinnedHand] = useState<'left' | 'right' | null>(null);
+  const pinnedPosRef = useRef<{ x: number; y: number } | null>(null);
+  const leftFistStartRef = useRef<number>(0);
+  const rightFistStartRef = useRef<number>(0);
+  const pinchConnectStartRef = useRef<number>(0);
+  const interactionCooldownUntilRef = useRef<number>(0);
+  const FIST_PIN_THRESHOLD = 500;
+  const PINCH_CONNECT_THRESHOLD = 400;
+  const PIN_PROXIMITY = 0.15;
+  const SAVE_INTERACTION_COOLDOWN = 700;
 
   const handleCameraReady = useCallback(() => {
     setIsCameraReady(true);
@@ -282,6 +264,40 @@ const App: React.FC = () => {
       fusionErrorRef.current = true; 
     }
   }, [leftElement, rightElement, combinedElement, gameState, quizMode]);
+
+  const handleOverlapMerge = useCallback(() => {
+    if (Date.now() < interactionCooldownUntilRef.current) return;
+    if (fusionErrorRef.current || combinedElement || gameState === 'dead') return;
+    checkCombination();
+  }, [checkCombination, combinedElement, gameState]);
+
+  const handleOverlapChange = useCallback((isOverlapping: boolean) => {
+    if (Date.now() < interactionCooldownUntilRef.current) return;
+    if (combinedElement || gameState === 'dead') return;
+    if (isOverlapping) {
+      if (!message.includes("WARNING") && !message.includes("QUIZ:")) {
+        setMessage("MERGING...");
+      }
+    } else {
+      if (message === "MERGING...") {
+        setMessage(quizMode.active && quizMode.targetName
+          ? `QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`
+          : pinnedHand ? (pinnedHand === 'left' ? "LEFT PINNED — BRING RIGHT HAND CLOSE" : "RIGHT PINNED — BRING LEFT HAND CLOSE")
+          : "LAB READY");
+      }
+    }
+  }, [combinedElement, gameState, message, quizMode, pinnedHand]);
+
+  // Clear pin state whenever a combination is formed
+  useEffect(() => {
+    if (combinedElement) {
+      setPinnedHand(null);
+      pinnedPosRef.current = null;
+      leftFistStartRef.current = 0;
+      rightFistStartRef.current = 0;
+      pinchConnectStartRef.current = 0;
+    }
+  }, [combinedElement]);
 
   // Play success sound when components are successfully combined
   const prevCombinedElementRef = useRef<ElementData | null>(null);
@@ -487,8 +503,29 @@ const App: React.FC = () => {
             }
             setCombinedElement(null);
             fusionErrorRef.current = false;
+            interactionCooldownUntilRef.current = now + SAVE_INTERACTION_COOLDOWN;
+            lastLeftHoverRef.current = null;
+            lastRightHoverRef.current = null;
+            leftFistStartRef.current = 0;
+            rightFistStartRef.current = 0;
+            pinchConnectStartRef.current = 0;
         } else if (data.isResetGesture) {
-            if (fusionErrorRef.current || combinedElement) {
+            // Cancel active pin first; if no pin, reset error state
+            if (pinnedHand) {
+                setPinnedHand(null);
+                pinnedPosRef.current = null;
+                leftFistStartRef.current = 0;
+                rightFistStartRef.current = 0;
+                pinchConnectStartRef.current = 0;
+                setMessage("PIN RELEASED");
+                setTimeout(() => {
+                    if (quizMode.active && quizMode.targetName) {
+                        setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
+                    } else {
+                        setMessage("LAB READY");
+                    }
+                }, 1200);
+            } else if (fusionErrorRef.current) {
                 setCombinedElement(null);
                 fusionErrorRef.current = false;
                 if (quizMode.active && quizMode.targetName) {
@@ -498,7 +535,11 @@ const App: React.FC = () => {
                 }
             }
         }
-        return; 
+        return;
+    }
+
+    if (now < interactionCooldownUntilRef.current) {
+        return;
     }
 
     if (fusionErrorRef.current) {
@@ -545,29 +586,69 @@ const App: React.FC = () => {
         }
     }
 
-    if (!combinedElement && data.isClapping && !fusionErrorRef.current) {
-        if (clapStartRef.current === 0) {
-            clapStartRef.current = now;
-        }
-        
-        const duration = now - clapStartRef.current;
-        if (duration > CLAP_DURATION_THRESHOLD) {
-            checkCombination();
-            clapStartRef.current = 0; 
+    if (!combinedElement && !fusionErrorRef.current) {
+      // --- PIN GESTURE: fist held for FIST_PIN_THRESHOLD ms pins that element ---
+      if (!pinnedHand) {
+        if (data.leftIsFist && data.left.isPresent) {
+          if (leftFistStartRef.current === 0) leftFistStartRef.current = now;
+          else if (now - leftFistStartRef.current > FIST_PIN_THRESHOLD) {
+            setPinnedHand('left');
+            pinnedPosRef.current = { x: data.left.position.x, y: data.left.position.y };
+            leftFistStartRef.current = 0;
+            setMessage("LEFT PINNED — BRING RIGHT HAND CLOSE");
+          }
         } else {
-             if (!message.includes("WARNING") && !message.includes("QUIZ:")) {
-                if (message !== "HOLD TO FUSE...") setMessage("HOLD TO FUSE...");
-             }
+          leftFistStartRef.current = 0;
         }
-    } else {
-        clapStartRef.current = 0;
-        if (message === "HOLD TO FUSE...") {
-            if (quizMode.active && quizMode.targetName) {
-                setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
+
+        if (data.rightIsFist && data.right.isPresent) {
+          if (rightFistStartRef.current === 0) rightFistStartRef.current = now;
+          else if (now - rightFistStartRef.current > FIST_PIN_THRESHOLD) {
+            setPinnedHand('right');
+            pinnedPosRef.current = { x: data.right.position.x, y: data.right.position.y };
+            rightFistStartRef.current = 0;
+            setMessage("RIGHT PINNED — BRING LEFT HAND CLOSE");
+          }
+        } else {
+          rightFistStartRef.current = 0;
+        }
+      }
+
+      // --- CONNECT GESTURE: moving hand approaches pinned element, then pinches ---
+      if (pinnedHand && pinnedPosRef.current) {
+        const pinned = pinnedPosRef.current;
+        const movingHand = pinnedHand === 'left' ? data.right : data.left;
+
+        if (movingHand.isPresent) {
+          const dx = movingHand.position.x - pinned.x;
+          const dy = movingHand.position.y - pinned.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < PIN_PROXIMITY) {
+            if (movingHand.isPinching) {
+              if (pinchConnectStartRef.current === 0) pinchConnectStartRef.current = now;
+              else if (now - pinchConnectStartRef.current > PINCH_CONNECT_THRESHOLD) {
+                checkCombination();
+                pinchConnectStartRef.current = 0;
+              } else if (!message.includes("WARNING") && !message.includes("QUIZ:")) {
+                setMessage("PINCH HELD — FUSING...");
+              }
             } else {
-                setMessage("LAB READY");
+              pinchConnectStartRef.current = 0;
+              if (!message.includes("WARNING") && !message.includes("QUIZ:") && !message.includes("PINNED")) {
+                setMessage("IN RANGE — PINCH TO FUSE");
+              }
             }
+          } else {
+            pinchConnectStartRef.current = 0;
+            if (message === "IN RANGE — PINCH TO FUSE" || message === "PINCH HELD — FUSING...") {
+              setMessage(pinnedHand === 'left'
+                ? "LEFT PINNED — BRING RIGHT HAND CLOSE"
+                : "RIGHT PINNED — BRING LEFT HAND CLOSE");
+            }
+          }
         }
+      }
     }
 
   }, [combinedElement, message, checkCombination, handleInteraction, isDashboardOpen, quizMode]);
@@ -587,11 +668,16 @@ const App: React.FC = () => {
 
       {isCameraReady && (
         <>
-            <Scene 
-                leftElement={leftElement} 
-                rightElement={rightElement} 
+            <Scene
+                leftElement={leftElement}
+                rightElement={rightElement}
                 combinedElement={combinedElement}
                 trackingData={trackingDataRef}
+                pinnedHand={pinnedHand}
+                pinnedPosRef={pinnedPosRef}
+                interactionCooldownUntilRef={interactionCooldownUntilRef}
+                onOverlapMerge={handleOverlapMerge}
+                onOverlapChange={handleOverlapChange}
             />
             <UIOverlay
                 leftElement={leftElement}
@@ -607,6 +693,7 @@ const App: React.FC = () => {
                 gameState={gameState}
                 deathReason={deathReason}
                 showSixtySeven={showSixtySeven}
+                pinnedHand={pinnedHand}
             />
             <Dashboard 
                isOpen={isDashboardOpen}

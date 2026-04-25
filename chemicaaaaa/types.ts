@@ -32,9 +32,11 @@ export interface TrackingData {
   right: HandGestureState;
   isClapping: boolean;
   isResetGesture: boolean; // Circular motion detected
-  isClosedFist: boolean; // New gesture for saving
-  isSixtySevenGesture: boolean; // Palms up + alternating motion detected
+  isClosedFist: boolean;
+  leftIsFist: boolean; // Per-hand fist for pin gesture
+  rightIsFist: boolean;
+  isSixtySevenGesture: boolean;
   handDistance: number;
   cameraAspect: number; // Width / Height
-  hoveredElement?: string; // Symbol of element being hovered
+  hoveredElement?: string;
 }

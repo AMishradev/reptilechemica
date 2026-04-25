@@ -8,12 +8,14 @@ interface ParticleSphereProps {
   scaleRef: React.MutableRefObject<number>;
   opacityTarget: number; // New prop to control fading
   isActive: boolean;
+  mergeLockRef?: React.MutableRefObject<number>;
 }
 
 const coreVertexShader = `
   uniform float uTime;
   uniform float uScale; // Controls the spread/radius
   uniform float uTurbulence; // Controls the chaotic movement
+  uniform float uMergeLock;
   
   attribute float aSize;
   attribute float aSpeed;
@@ -97,9 +99,11 @@ const coreVertexShader = `
     // If it's a shell particle, push it out further
     if (aLayer > 0.5) {
         pos *= expansion;
+        pos *= mix(1.0, 0.42, uMergeLock);
     } else {
         // Nucleus only expands slightly
         pos *= (1.0 + uScale * 0.5);
+        pos *= mix(1.0, 0.92, uMergeLock);
     }
 
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
@@ -109,7 +113,7 @@ const coreVertexShader = `
     gl_PointSize = (aSize * 50.0) / -mvPosition.z;
     
     // Alpha
-    vAlpha = 1.0;
+    vAlpha = aLayer > 0.5 ? mix(1.0, 0.16, uMergeLock) : mix(1.0, 1.18, uMergeLock);
   }
 `;
 
@@ -129,7 +133,7 @@ const coreFragmentShader = `
     
     vec3 finalColor = mix(uColor, vec3(1.0), glow * 0.5); // Add white hot center
     
-    gl_FragColor = vec4(finalColor, glow * uOpacity);
+    gl_FragColor = vec4(finalColor, glow * uOpacity * vAlpha);
   }
 `;
 
@@ -164,8 +168,16 @@ const ringFragmentShader = `
     }
 `;
 
-const OrbitalRing: React.FC<{ radius: number, speed: number, axis: [number, number, number], color: string, opacity: number }> = ({ radius, speed, axis, color, opacity }) => {
+const OrbitalRing: React.FC<{
+    radius: number;
+    speed: number;
+    axis: [number, number, number];
+    color: string;
+    opacity: number;
+    mergeLockRef?: React.MutableRefObject<number>;
+}> = ({ radius, speed, axis, color, opacity, mergeLockRef }) => {
     const ref = useRef<THREE.Points>(null);
+    const materialRef = useRef<THREE.ShaderMaterial>(null);
     const count = 150; // Number of particles in the ring
 
     const { positions, sizes, offsets } = useMemo(() => {
@@ -188,10 +200,17 @@ const OrbitalRing: React.FC<{ radius: number, speed: number, axis: [number, numb
 
     useFrame((state) => {
         if (ref.current) {
+            const mergeLock = mergeLockRef?.current ?? 0;
             // Self Rotation Axis
-            ref.current.rotation.x += axis[0] * speed;
-            ref.current.rotation.y += axis[1] * speed;
-            ref.current.rotation.z += axis[2] * speed;
+            ref.current.rotation.x += axis[0] * speed * (1 - mergeLock * 0.7);
+            ref.current.rotation.y += axis[1] * speed * (1 - mergeLock * 0.7);
+            ref.current.rotation.z += axis[2] * speed * (1 - mergeLock * 0.7);
+            ref.current.scale.setScalar(THREE.MathUtils.lerp(1, 0.56, mergeLock));
+        }
+
+        if (materialRef.current) {
+            const mergeLock = mergeLockRef?.current ?? 0;
+            materialRef.current.uniforms.uOpacity.value = opacity * (1 - mergeLock * 0.88);
         }
     });
 
@@ -203,6 +222,7 @@ const OrbitalRing: React.FC<{ radius: number, speed: number, axis: [number, numb
                 <bufferAttribute attach="attributes-aOffset" count={offsets.length} array={offsets} itemSize={1} />
             </bufferGeometry>
             <shaderMaterial
+                ref={materialRef}
                 transparent
                 depthWrite={false}
                 blending={THREE.AdditiveBlending}
@@ -217,8 +237,10 @@ const OrbitalRing: React.FC<{ radius: number, speed: number, axis: [number, numb
     );
 };
 
-const ParticleSphere: React.FC<ParticleSphereProps> = ({ element, scaleRef, opacityTarget }) => {
+const ParticleSphere: React.FC<ParticleSphereProps> = ({ element, scaleRef, opacityTarget, mergeLockRef }) => {
   const meshRef = useRef<THREE.Points>(null);
+  const lockCoreRef = useRef<THREE.Mesh>(null);
+  const lockRingRef = useRef<THREE.Mesh>(null);
   // INCREASED PARTICLES FOR DENSER LOOK
   const coreCount = 1500;
   const shellCount = 2000;
@@ -227,6 +249,7 @@ const ParticleSphere: React.FC<ParticleSphereProps> = ({ element, scaleRef, opac
     uTime: { value: 0 },
     uScale: { value: 0.0 },
     uTurbulence: { value: 0.0 },
+    uMergeLock: { value: 0.0 },
     uColor: { value: new THREE.Color(element.color) },
     uOpacity: { value: 0 }
   }), []); 
@@ -276,6 +299,7 @@ const ParticleSphere: React.FC<ParticleSphereProps> = ({ element, scaleRef, opac
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
     const pinchValue = scaleRef.current; 
+    const mergeLock = mergeLockRef?.current ?? 0;
 
     if (meshRef.current) {
       const material = meshRef.current.material as THREE.ShaderMaterial;
@@ -293,18 +317,60 @@ const ParticleSphere: React.FC<ParticleSphereProps> = ({ element, scaleRef, opac
         0.1
       );
 
+      material.uniforms.uMergeLock.value = THREE.MathUtils.lerp(
+        material.uniforms.uMergeLock.value,
+        mergeLock,
+        0.12
+      );
+
       material.uniforms.uColor.value.lerp(new THREE.Color(element.color), 0.1);
       
       material.uniforms.uOpacity.value = THREE.MathUtils.lerp(
         material.uniforms.uOpacity.value,
-        opacityTarget,
+        opacityTarget * (1 - mergeLock * 0.18),
         0.1
       );
+    }
+
+    if (lockCoreRef.current) {
+      const pulse = 1 + Math.sin(time * 5.5) * 0.08;
+      const targetScale = THREE.MathUtils.lerp(0.88, 1.18, mergeLock) * pulse;
+      lockCoreRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.14);
+      const material = lockCoreRef.current.material as THREE.MeshStandardMaterial;
+      material.opacity = THREE.MathUtils.lerp(material.opacity, opacityTarget * mergeLock * 0.45, 0.14);
+      material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, 0.2 + mergeLock * 1.15, 0.14);
+    }
+
+    if (lockRingRef.current) {
+      const pulse = 1 + Math.sin(time * 4.5 + 0.8) * 0.06;
+      const targetScale = THREE.MathUtils.lerp(1, 0.72, mergeLock) * pulse;
+      lockRingRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.14);
+      lockRingRef.current.rotation.z += 0.01 * (1 - mergeLock * 0.55);
+      lockRingRef.current.rotation.y += 0.008 * (1 - mergeLock * 0.55);
+      const material = lockRingRef.current.material as THREE.MeshBasicMaterial;
+      material.opacity = THREE.MathUtils.lerp(material.opacity, opacityTarget * (0.2 + mergeLock * 0.75), 0.14);
     }
   });
 
   return (
     <group>
+        <mesh ref={lockCoreRef}>
+            <sphereGeometry args={[0.4, 24, 24]} />
+            <meshStandardMaterial
+                color={element.color}
+                emissive={element.color}
+                emissiveIntensity={0.2}
+                roughness={0.2}
+                metalness={0.15}
+                transparent
+                opacity={0}
+            />
+        </mesh>
+        <mesh ref={lockRingRef}>
+            <torusGeometry args={[0.58, 0.02, 10, 72]} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0} />
+        </mesh>
+
         {/* Core & Shell Particles */}
         <points ref={meshRef}>
             <bufferGeometry>
@@ -326,9 +392,9 @@ const ParticleSphere: React.FC<ParticleSphereProps> = ({ element, scaleRef, opac
         {/* Futuristic Orbital Particle Rings (Decreased Radius for tighter fit) */}
         {opacityTarget > 0.1 && (
             <>
-                <OrbitalRing radius={1.1} speed={0.03} axis={[0.2, 1, 0.2]} color={element.color} opacity={opacityTarget * 1.5} />
-                <OrbitalRing radius={1.3} speed={0.04} axis={[1, 0.2, 0.2]} color={element.color} opacity={opacityTarget * 1.3} />
-                <OrbitalRing radius={1.5} speed={0.02} axis={[0.5, 0.5, 1]} color="#ffffff" opacity={opacityTarget * 1.0} />
+                <OrbitalRing radius={1.1} speed={0.03} axis={[0.2, 1, 0.2]} color={element.color} opacity={opacityTarget * 1.5} mergeLockRef={mergeLockRef} />
+                <OrbitalRing radius={1.3} speed={0.04} axis={[1, 0.2, 0.2]} color={element.color} opacity={opacityTarget * 1.3} mergeLockRef={mergeLockRef} />
+                <OrbitalRing radius={1.5} speed={0.02} axis={[0.5, 0.5, 1]} color="#ffffff" opacity={opacityTarget * 1.0} mergeLockRef={mergeLockRef} />
             </>
         )}
     </group>

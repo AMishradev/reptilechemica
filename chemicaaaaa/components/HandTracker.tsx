@@ -109,6 +109,8 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
         isClapping: false,
         isResetGesture: false,
         isClosedFist: false,
+        leftIsFist: false,
+        rightIsFist: false,
         isSixtySevenGesture: false,
         handDistance: 1000,
         cameraAspect: videoAspect
@@ -135,19 +137,6 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
 
           const isFist = detectClosedFist(landmarks);
           if (isFist) detectedFist = true;
-          
-          // Store palm up state and landmarks for 67 gesture detection
-          // COMMENTED OUT - Disabled gesture detection
-          /*
-          const palmUp = detectPalmUp(landmarks);
-          if (label === 'Right') {
-            leftPalmUp = palmUp;
-            leftLandmarks = landmarks;
-          } else {
-            rightPalmUp = palmUp;
-            rightLandmarks = landmarks;
-          }
-          */
 
           // Logic for Circular Reset Gesture using Index Position now for better circular tracking
           if (handState.isPointing) {
@@ -158,10 +147,11 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
              else rightBuffer.current.clear();
           }
 
-          if (label === 'Right') { 
+          if (label === 'Right') {
              handState.isDetected = true;
              handState.isPresent = true;
              trackingData.left = handState;
+             trackingData.leftIsFist = isFist;
              detectedHands.add('left');
              if (leftBuffer.current.detectCircle()) {
                 trackingData.isResetGesture = true;
@@ -171,6 +161,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
              handState.isDetected = true;
              handState.isPresent = true;
              trackingData.right = handState;
+             trackingData.rightIsFist = isFist;
              detectedHands.add('right');
              if (rightBuffer.current.detectCircle()) {
                 trackingData.isResetGesture = true;
