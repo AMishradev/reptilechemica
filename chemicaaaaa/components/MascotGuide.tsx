@@ -9,6 +9,7 @@ interface MascotGuideProps {
   isDashboardOpen: boolean;
   trackingData: React.MutableRefObject<TrackingData>;
   combinedElement: ElementData | null; // New component that was just created
+  advice?: string | null;
 }
 
 const getMascotMood = (
@@ -35,7 +36,7 @@ const getMascotMood = (
   return 'idle';
 };
 
-const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, trackingData, combinedElement }) => {
+const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, trackingData, combinedElement, advice }) => {
   const [mascotText, setMascotText] = useState("Welcome to the design lab. Pick two components.");
   const [isVisible, setIsVisible] = useState(true);
   const [isGeminiLoading, setIsGeminiLoading] = useState(false);
@@ -161,7 +162,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     
     // Only show system messages if no active Gemini explanation
     if (!geminiExplanation) {
-      const nextText = getSystemMessage(message);
+      const nextText = advice ?? getSystemMessage(message);
       const isIdle = message.includes("LAB READY");
       
       const scheduleUpdate = () => {
@@ -196,7 +197,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
           if (timeoutRef.current) clearTimeout(timeoutRef.current);
       };
     }
-  }, [message, geminiExplanation, explanationStartTime, combinedElement]);
+  }, [message, advice, geminiExplanation, explanationStartTime, combinedElement]);
 
   // Hide mascot when dashboard is open (since dashboard has its own)
   useEffect(() => {

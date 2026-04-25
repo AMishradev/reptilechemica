@@ -37,6 +37,40 @@ const createIdleTrackingData = (cameraAspect = 1.77): TrackingData => ({
   cameraAspect,
 });
 
+const getPairKey = (leftSymbol: string, rightSymbol: string) =>
+  [leftSymbol, rightSymbol].sort().join('+');
+
+const formatAdviceList = (items: string[]) => {
+  if (items.length <= 1) return items[0] ?? '';
+  if (items.length === 2) return `${items[0]} or ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, or ${items[items.length - 1]}`;
+};
+
+const getPossibleOutcomes = (symbol: string) => {
+  const outcomes = COMBINATIONS
+    .filter(combination => combination.elements.includes(symbol))
+    .map(combination => {
+      const partner = combination.elements.find(item => item !== symbol) ?? symbol;
+      return `${partner} for ${combination.result.symbol}`;
+    });
+
+  return Array.from(new Set(outcomes));
+};
+
+const getRepeatedFailureAdvice = (leftSymbol: string, rightSymbol: string) => {
+  const leftOutcomes = getPossibleOutcomes(leftSymbol);
+  const rightOutcomes = getPossibleOutcomes(rightSymbol);
+
+  const leftAdvice = leftOutcomes.length
+    ? `For ${leftSymbol}, try ${formatAdviceList(leftOutcomes)}`
+    : `${leftSymbol} has no known stable pairing yet`;
+  const rightAdvice = rightOutcomes.length
+    ? `For ${rightSymbol}, try ${formatAdviceList(rightOutcomes)}`
+    : `${rightSymbol} has no known stable pairing yet`;
+
+  return `${leftAdvice}. ${rightAdvice}.`;
+};
+
 const App: React.FC = () => {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
@@ -56,6 +90,7 @@ const App: React.FC = () => {
   
   const [combinedElement, setCombinedElement] = useState<ElementData | null>(null);
   const [message, setMessage] = useState("LAB READY");
+  const [mascotAdvice, setMascotAdvice] = useState<string | null>(null);
   const [savedElements, setSavedElements] = useState<ElementData[]>([]);
   
   const [gameState, setGameState] = useState<GameState>('playing');
@@ -229,6 +264,7 @@ const App: React.FC = () => {
 
   const lastLeftHoverRef = useRef<string | null>(null);
   const lastRightHoverRef = useRef<string | null>(null);
+  const failedFusionAttemptsRef = useRef<Record<string, number>>({});
 
   const clapStartRef = useRef<number>(0);
   const CLAP_DURATION_THRESHOLD = 800; 
@@ -246,6 +282,10 @@ const App: React.FC = () => {
     clapStartRef.current = 0;
   }, [isDashboardOpen]);
 
+  useEffect(() => {
+    setMascotAdvice(null);
+  }, [leftElement.symbol, rightElement.symbol]);
+
   const checkCombination = useCallback(() => {
     if (combinedElement || gameState === 'dead') return;
     
@@ -257,6 +297,9 @@ const App: React.FC = () => {
     );
 
     if (combo) {
+        failedFusionAttemptsRef.current[getPairKey(leftElement.symbol, rightElement.symbol)] = 0;
+        setMascotAdvice(null);
+
         // QUIZ LOGIC
         if (quizMode.active && quizMode.targetSymbol) {
              // Check if result matches target
@@ -298,6 +341,15 @@ const App: React.FC = () => {
         setMessage(`FUSION SUCCESS: ${combo.result.name}`);
         fusionErrorRef.current = false;
     } else {
+      const pairKey = getPairKey(leftElement.symbol, rightElement.symbol);
+      const attempts = (failedFusionAttemptsRef.current[pairKey] ?? 0) + 1;
+      failedFusionAttemptsRef.current[pairKey] = attempts;
+      setMascotAdvice(
+        attempts === 1
+          ? "That pairing is unstable. Try using a bridge component, like API, APP, or LB."
+          : getRepeatedFailureAdvice(leftElement.symbol, rightElement.symbol)
+      );
+
       // Quiz Failure for Incompatible Components
       if (quizMode.active) {
           setCombinedElement({
@@ -689,8 +741,9 @@ const App: React.FC = () => {
             <MascotGuide 
                message={displayedMessage}
                isDashboardOpen={isDashboardOpen}
-               trackingData={trackingDataRef}
-               combinedElement={displayedCombinedElement}
+                trackingData={trackingDataRef}
+                combinedElement={displayedCombinedElement}
+                advice={mascotAdvice}
             />
             )}
         </>
