@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Stars } from "@react-three/drei";
+import { Stars } from "@react-three/drei/core/Stars.js";
 import * as THREE from "three";
 import WaterSimulation from "./components/WaterSimulation";
 import { TrackingData } from "./types";
@@ -241,16 +241,21 @@ const LandingPage: React.FC = () => {
       isPinching: false,
       isPointing: false,
       position: { x: 0.3, y: 0.5, z: 0 },
+      indexPosition: { x: 0.3, y: 0.5, z: 0 },
+      isPresent: false,
     },
     right: {
       pinchDistance: 0.3,
       isPinching: false,
       isPointing: false,
       position: { x: 0.7, y: 0.5, z: 0 },
+      indexPosition: { x: 0.7, y: 0.5, z: 0 },
+      isPresent: false,
     },
     isClapping: false,
     isResetGesture: false,
     isClosedFist: false,
+    isSixtySevenGesture: false,
     handDistance: 0.4,
     cameraAspect: 1.77,
   });
@@ -267,6 +272,10 @@ const LandingPage: React.FC = () => {
         0.7 + Math.sin(time + Math.PI) * 0.1;
       mockTrackingRef.current.right.position.y =
         0.5 + Math.cos(time * 0.7 + Math.PI) * 0.1;
+      mockTrackingRef.current.left.indexPosition =
+        mockTrackingRef.current.left.position;
+      mockTrackingRef.current.right.indexPosition =
+        mockTrackingRef.current.right.position;
       mockTrackingRef.current.left.pinchDistance =
         0.3 + Math.sin(time * 2) * 0.1;
       mockTrackingRef.current.right.pinchDistance =

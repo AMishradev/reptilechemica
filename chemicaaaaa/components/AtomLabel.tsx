@@ -1,5 +1,5 @@
 import React from 'react';
-import { Html } from '@react-three/drei';
+import { Html } from '@react-three/drei/web/Html.js';
 import { ElementData } from '../types';
 
 interface AtomLabelProps {

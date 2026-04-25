@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import MascotAvatar from './MascotAvatar';
+import MascotAvatar, { type MascotMood } from './MascotAvatar';
 import { getSystemMessage } from '../utils/mascot';
 import { getElementExplanation } from '../utils/gemini';
 import { TrackingData, ElementData } from '../types';
@@ -11,9 +11,34 @@ interface MascotGuideProps {
   combinedElement: ElementData | null; // New component that was just created
 }
 
+const getMascotMood = (
+  message: string,
+  mascotText: string,
+  combinedElement: ElementData | null,
+  isGeminiLoading: boolean
+): MascotMood => {
+  const combinedSymbol = combinedElement?.symbol;
+  const combinedText = `${message} ${mascotText}`.toUpperCase();
+
+  if (combinedText.match(/BOOM|ERROR|FAILED|INVALID|TRY AGAIN|NO MATCH|COLLISION/)) {
+    return 'alert';
+  }
+
+  if (combinedElement && combinedSymbol !== 'BOOM' && combinedSymbol !== 'X') {
+    return 'success';
+  }
+
+  if (isGeminiLoading || combinedText.match(/OBSERVING|INITIALIZING|ANALYZING|GENERATING|LOADING/)) {
+    return 'thinking';
+  }
+
+  return 'idle';
+};
+
 const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, trackingData, combinedElement }) => {
   const [mascotText, setMascotText] = useState("Welcome to the design lab. Pick two components.");
   const [isVisible, setIsVisible] = useState(true);
+  const [isGeminiLoading, setIsGeminiLoading] = useState(false);
   
   // Track the current Gemini explanation
   const [geminiExplanation, setGeminiExplanation] = useState<string | null>(null);
@@ -46,15 +71,18 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
           setTimeout(() => {
             // Now load the new explanation
             geminiLoadingRef.current = true;
+            setIsGeminiLoading(true);
             lastCombinedElementRef.current = combinedElement.symbol;
-            
+             
             getElementExplanation(combinedElement).then((explanation) => {
               setGeminiExplanation(explanation);
               setExplanationStartTime(Date.now());
               geminiLoadingRef.current = false;
+              setIsGeminiLoading(false);
             }).catch((error) => {
               console.error('Failed to get Gemini explanation:', error);
               geminiLoadingRef.current = false;
+              setIsGeminiLoading(false);
               setGeminiExplanation(`Nice! You've created ${combinedElement.name}. This composed component adds a new capability to the system.`);
               setExplanationStartTime(Date.now());
             });
@@ -65,16 +93,19 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
       
       // Mark that we're loading a new explanation
       geminiLoadingRef.current = true;
+      setIsGeminiLoading(true);
       lastCombinedElementRef.current = combinedElement.symbol;
-      
+       
       // Call Gemini API to get explanation
       getElementExplanation(combinedElement).then((explanation) => {
         setGeminiExplanation(explanation);
         setExplanationStartTime(Date.now());
         geminiLoadingRef.current = false;
+        setIsGeminiLoading(false);
       }).catch((error) => {
         console.error('Failed to get Gemini explanation:', error);
         geminiLoadingRef.current = false;
+        setIsGeminiLoading(false);
         // Use fallback
         setGeminiExplanation(`Nice! You've created ${combinedElement.name}. This composed component adds a new capability to the system.`);
         setExplanationStartTime(Date.now());
@@ -174,6 +205,8 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
 
   if (!isVisible) return null;
 
+  const mascotMood = getMascotMood(message, mascotText, combinedElement, isGeminiLoading);
+
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none overflow-visible ">
        {/* Speech Bubble */}
@@ -188,11 +221,11 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
           {/* Glow Effect */}
           <div className="absolute inset-0 bg-cyan-500/20 rounded-full blur-3xl group-hover:bg-cyan-500/40 transition-all duration-500"></div>
           
-          {/* Container */}
-          <div className="w-full h-full relative z-10 pointer-events-auto">
-             <MascotAvatar trackingData={trackingData} />
-          </div>
-       </div>
+           {/* Container */}
+           <div className="w-full h-full relative z-10 pointer-events-auto">
+              <MascotAvatar trackingData={trackingData} mood={mascotMood} />
+           </div>
+        </div>
 
        <style>{`
          @keyframes bounce-slight {

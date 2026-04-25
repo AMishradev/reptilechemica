@@ -169,7 +169,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
   if (!isOpen) return null;
 
   return (
-    <div className="absolute inset-0 z-[100] bg-black/90 backdrop-blur-lg flex flex-col items-center justify-center text-white p-8 animate-fadeIn">
+    <div className="absolute inset-0 z-[100] bg-[#020607] flex flex-col items-center justify-center text-white p-8 animate-fadeIn">
       
       {/* Header */}
       <div className="w-full max-w-6xl flex justify-between items-end mb-8 border-b border-white/20 pb-4">
@@ -320,8 +320,8 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
                 )}
              </div>
 
-             {/* Mascot Area */}
-             <div className="bg-gradient-to-b from-gray-900 to-black border border-gray-800 rounded-2xl p-6 relative overflow-hidden flex flex-col">
+              {/* Analysis Area */}
+              <div className="bg-gradient-to-b from-gray-900 to-black border border-gray-800 rounded-2xl p-6 relative overflow-hidden flex flex-col">
                  {/* Background Component Symbol - Top Left, 50% space */}
                  {selectedInfo && (
                      <div 
@@ -344,20 +344,17 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
                          {selectedInfo.symbol}
                      </div>
                  )}
-                 {/* Mascot Graphic (Live 3D Render) */}
-                 <div className="w-full h-48 relative -mt-4 mb-2" style={{ zIndex: 1 }}>
-                    {/* Glow */}
-                    <div className="absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4 w-32 h-32 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"></div>
-                    {/* Avatar - Positioned bottom right */}
-                    <div className="absolute bottom-0 -right-14" style={{ transform: 'translate(15%, 15%)' }}>
-                        <MascotAvatar trackingData={dashboardTrackingRef} />
-                    </div>
-                 </div>
+                  <div className="absolute right-4 top-4 h-20 w-20 z-10 opacity-90 pointer-events-none">
+                     <div className="absolute inset-2 bg-cyan-500/20 rounded-full blur-2xl animate-pulse"></div>
+                     <div className="relative h-full w-full">
+                        <MascotAvatar trackingData={dashboardTrackingRef} mood={selectedInfo ? 'thinking' : 'idle'} />
+                     </div>
+                  </div>
 
-                 <div className="relative z-10 border-t border-white/10 pt-4">
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className="w-2 h-2 bg-cyan-500 rounded-full animate-ping"></div>
-                        <div className="text-xs font-bold text-cyan-400 font-mono uppercase tracking-widest">Component Analysis</div>
+                  <div className="relative z-10 pr-20">
+                     <div className="flex items-center gap-2 mb-2">
+                         <div className="w-2 h-2 bg-cyan-500 rounded-full animate-ping"></div>
+                         <div className="text-xs font-bold text-cyan-400 font-mono uppercase tracking-widest">Component Analysis</div>
                     </div>
                     
                     <p className="text-xs text-gray-300 leading-relaxed font-mono min-h-[80px]">

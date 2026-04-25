@@ -13,6 +13,9 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
       },
       plugins: [react()],
+      optimizeDeps: {
+        exclude: ['@react-three/drei'],
+      },
       css: {
         postcss: {
           plugins: [],
