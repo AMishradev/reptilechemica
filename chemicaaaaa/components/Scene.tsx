@@ -1,13 +1,15 @@
 
 import React, { useRef, useState, useEffect, useMemo } from 'react';
-import { Canvas, useFrame, extend } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Html } from '@react-three/drei';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei/core/OrbitControls.js';
+import { PerspectiveCamera } from '@react-three/drei/core/PerspectiveCamera.js';
+import { Html } from '@react-three/drei/web/Html.js';
 import ParticleSphere from './ParticleSphere';
 import WaterSimulation from './WaterSimulation'; 
 import { SaltPile, SaltLattice } from './SaltSimulation'; 
 import AtomLabel from './AtomLabel';
 import { ElementData, TrackingData } from '../types';
-import { ELEMENTS } from '../constants';
+import { COMBINATIONS, ELEMENTS } from '../constants';
 import * as THREE from 'three';
 
 interface SceneProps {
@@ -18,13 +20,15 @@ interface SceneProps {
 }
 
 const getComponentData = (symbol: string) => {
-  return ELEMENTS.find(component => component.symbol === symbol) ?? {
-    symbol,
-    name: symbol,
-    color: '#ffffff',
-    atomicNumber: 0,
-    description: '',
-  };
+  return ELEMENTS.find(component => component.symbol === symbol)
+    ?? COMBINATIONS.find(combination => combination.result.symbol === symbol)?.result
+    ?? {
+      symbol,
+      name: symbol,
+      color: '#ffffff',
+      atomicNumber: 0,
+      description: '',
+    };
 };
 
 const ComponentNode: React.FC<{
@@ -372,6 +376,560 @@ const WebAppComponent: React.FC<{
       </Html>
     </group>
   );
+};
+
+type DiagramPosition = [number, number, number];
+type DiagramRotation = [number, number, number];
+
+interface DiagramNodeConfig {
+  symbol: string;
+  position: DiagramPosition;
+  pulseOffset?: number;
+}
+
+interface DiagramBeamConfig {
+  start: DiagramPosition;
+  end: DiagramPosition;
+  color: string;
+  opacity?: number;
+  radius?: number;
+}
+
+interface DiagramFlowConfig {
+  path: DiagramPosition[];
+  offset: number;
+  color?: string;
+  opacity?: number;
+  speed?: number;
+  kind?: 'sphere' | 'octa' | 'box';
+  size?: number;
+}
+
+interface DiagramBoxConfig {
+  position: DiagramPosition;
+  size: DiagramPosition;
+  color: string;
+  opacity: number;
+  rotation?: DiagramRotation;
+}
+
+interface DiagramRingConfig {
+  position: DiagramPosition;
+  radius: number;
+  color: string;
+  opacity: number;
+  rotation?: DiagramRotation;
+  spin?: DiagramPosition;
+}
+
+interface DiagramTextConfig {
+  text: string;
+  position: DiagramPosition;
+  color?: string;
+  vertical?: boolean;
+}
+
+interface VisualPreset {
+  title: string;
+  color: string;
+  scale?: number;
+  tilt?: number;
+  nodes: DiagramNodeConfig[];
+  beams?: DiagramBeamConfig[];
+  flows?: DiagramFlowConfig[];
+  boxes?: DiagramBoxConfig[];
+  rings?: DiagramRingConfig[];
+  labels?: DiagramTextConfig[];
+}
+
+const pos = (x: number, y: number, z = 0): DiagramPosition => [x, y, z];
+
+const DiagramRing: React.FC<{ ring: DiagramRingConfig; opacityTarget: number }> = ({ ring, opacityTarget }) => {
+  const ringRef = useRef<THREE.Mesh>(null);
+
+  useFrame(() => {
+    if (!ringRef.current || !ring.spin) return;
+    ringRef.current.rotation.x += ring.spin[0];
+    ringRef.current.rotation.y += ring.spin[1];
+    ringRef.current.rotation.z += ring.spin[2];
+  });
+
+  return (
+    <mesh ref={ringRef} position={ring.position} rotation={ring.rotation ?? [0, 0, 0]}>
+      <torusGeometry args={[ring.radius, 0.015, 12, 96]} />
+      <meshBasicMaterial color={ring.color} transparent opacity={ring.opacity * opacityTarget} />
+    </mesh>
+  );
+};
+
+const FlowPacket: React.FC<DiagramFlowConfig & { opacityTarget: number }> = ({
+  path,
+  offset,
+  color = '#ffffff',
+  opacity = 1,
+  speed = 0.32,
+  kind = 'sphere',
+  size = 0.08,
+  opacityTarget,
+}) => {
+  const packetRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    if (!packetRef.current || path.length < 2) return;
+    const cycle = (state.clock.elapsedTime * speed + offset) % 1;
+    const scaled = cycle * (path.length - 1);
+    const segment = Math.min(path.length - 2, Math.floor(scaled));
+    const localT = scaled - segment;
+    const start = new THREE.Vector3(...path[segment]);
+    const end = new THREE.Vector3(...path[segment + 1]);
+    const packetPosition = start.lerp(end, localT);
+    packetPosition.z += 0.09;
+    packetPosition.y += Math.sin(localT * Math.PI) * 0.08;
+    packetRef.current.position.copy(packetPosition);
+    packetRef.current.scale.setScalar(0.75 + Math.sin(cycle * Math.PI * 2) * 0.18);
+  });
+
+  return (
+    <mesh ref={packetRef}>
+      {kind === 'octa' ? (
+        <octahedronGeometry args={[size, 0]} />
+      ) : kind === 'box' ? (
+        <boxGeometry args={[size * 1.4, size * 1.4, size * 1.4]} />
+      ) : (
+        <sphereGeometry args={[size, 16, 16]} />
+      )}
+      <meshBasicMaterial color={color} transparent opacity={opacity * opacityTarget} />
+    </mesh>
+  );
+};
+
+const DiagramLabel: React.FC<{ label: DiagramTextConfig; opacityTarget: number }> = ({ label, opacityTarget }) => (
+  <Html position={label.position} center style={{ pointerEvents: 'none' }}>
+    <div
+      className="font-mono text-[9px] uppercase tracking-[0.25em] text-center whitespace-nowrap"
+      style={{
+        color: label.color ?? '#cffafe',
+        opacity: opacityTarget,
+        textShadow: `0 0 12px ${label.color ?? 'rgba(103, 232, 249, 0.8)'}`,
+        writingMode: label.vertical ? 'vertical-rl' : 'horizontal-tb',
+      }}
+    >
+      {label.text}
+    </div>
+  </Html>
+);
+
+const PresetDiagram: React.FC<{
+  preset: VisualPreset;
+  scaleRef: React.MutableRefObject<number>;
+  opacityTarget: number;
+}> = ({ preset, scaleRef, opacityTarget }) => {
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    const baseScale = preset.scale ?? 0.95;
+    const targetScale = baseScale + scaleRef.current * 0.28;
+    groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.12);
+    groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.25) * (preset.tilt ?? 0.1);
+  });
+
+  return (
+    <group ref={groupRef}>
+      {preset.boxes?.map((box, index) => (
+        <mesh key={`box-${index}`} position={box.position} rotation={box.rotation ?? [0, 0, 0]}>
+          <boxGeometry args={box.size} />
+          <meshBasicMaterial color={box.color} transparent opacity={box.opacity * opacityTarget} />
+        </mesh>
+      ))}
+
+      {preset.rings?.map((ring, index) => (
+        <DiagramRing key={`ring-${index}`} ring={ring} opacityTarget={opacityTarget} />
+      ))}
+
+      {preset.beams?.map((beam, index) => (
+        <ConnectionBeam
+          key={`beam-${index}`}
+          start={beam.start}
+          end={beam.end}
+          color={beam.color}
+          opacity={(beam.opacity ?? 0.65) * opacityTarget}
+          radius={beam.radius ?? 0.022}
+        />
+      ))}
+
+      {preset.flows?.map((flow, index) => (
+        <FlowPacket key={`flow-${index}`} {...flow} opacityTarget={opacityTarget} />
+      ))}
+
+      {preset.nodes.map((node, index) => (
+        <ComponentNode
+          key={`${node.symbol}-${index}`}
+          component={getComponentData(node.symbol)}
+          position={node.position}
+          opacity={opacityTarget}
+          pulseOffset={node.pulseOffset ?? index * 0.35}
+        />
+      ))}
+
+      {preset.labels?.map((label, index) => (
+        <DiagramLabel key={`label-${index}`} label={label} opacityTarget={opacityTarget} />
+      ))}
+
+      <Html position={[0, 1.95, 0]} center style={{ pointerEvents: 'none' }}>
+        <div
+          className="font-['Orbitron'] text-base font-bold tracking-[0.35em] text-white text-center whitespace-nowrap"
+          style={{
+            opacity: opacityTarget,
+            textShadow: `0 0 16px ${preset.color}`,
+          }}
+        >
+          {preset.title}
+        </div>
+      </Html>
+    </group>
+  );
+};
+
+const VISUAL_PRESETS: Record<string, VisualPreset> = {
+  MEDIA: {
+    title: 'MEDIA',
+    color: '#c084fc',
+    nodes: [
+      { symbol: 'OBJ', position: pos(-1.65, -0.35), pulseOffset: 0 },
+      { symbol: 'CDN', position: pos(0.6, 0.35), pulseOffset: 0.5 },
+      { symbol: 'MEDIA', position: pos(1.95, -0.45), pulseOffset: 1 },
+    ],
+    beams: [
+      { start: pos(-1.65, -0.35), end: pos(0.6, 0.35), color: '#c084fc', opacity: 0.55 },
+      { start: pos(0.6, 0.35), end: pos(1.95, -0.45), color: '#22d3ee', opacity: 0.6 },
+    ],
+    flows: [
+      { path: [pos(-1.65, -0.35), pos(0.6, 0.35), pos(1.95, -0.45)], offset: 0, color: '#f0abfc', speed: 0.28, kind: 'box' },
+      { path: [pos(-1.65, -0.35), pos(0.6, 0.35), pos(1.95, -0.45)], offset: 0.42, color: '#67e8f9', speed: 0.28, kind: 'box' },
+    ],
+    boxes: [
+      { position: pos(2.35, 0.35, -0.04), size: pos(0.42, 0.28, 0.04), color: '#67e8f9', opacity: 0.28 },
+      { position: pos(2.55, -0.1, -0.04), size: pos(0.38, 0.38, 0.04), color: '#c084fc', opacity: 0.25 },
+      { position: pos(2.18, -0.9, -0.04), size: pos(0.5, 0.32, 0.04), color: '#f0abfc', opacity: 0.22 },
+    ],
+    labels: [{ text: 'object assets to edge cache', position: pos(0, -1.35), color: '#e9d5ff' }],
+  },
+  POOL: {
+    title: 'POOL',
+    color: '#34d399',
+    nodes: [
+      { symbol: 'LB', position: pos(-1.9, 0), pulseOffset: 0 },
+      { symbol: 'APP', position: pos(0.8, 1), pulseOffset: 0.35 },
+      { symbol: 'APP', position: pos(1.85, 0), pulseOffset: 0.7 },
+      { symbol: 'APP', position: pos(0.8, -1), pulseOffset: 1.05 },
+    ],
+    beams: [
+      { start: pos(-1.9, 0), end: pos(0.8, 1), color: '#34d399', opacity: 0.52 },
+      { start: pos(-1.9, 0), end: pos(1.85, 0), color: '#34d399', opacity: 0.65 },
+      { start: pos(-1.9, 0), end: pos(0.8, -1), color: '#34d399', opacity: 0.52 },
+    ],
+    flows: [
+      { path: [pos(-1.9, 0), pos(0.8, 1)], offset: 0, color: '#bbf7d0', speed: 0.34 },
+      { path: [pos(-1.9, 0), pos(1.85, 0)], offset: 0.3, color: '#ffffff', speed: 0.34 },
+      { path: [pos(-1.9, 0), pos(0.8, -1)], offset: 0.6, color: '#bbf7d0', speed: 0.34 },
+    ],
+    rings: [{ position: pos(1.1, 0), radius: 1.35, color: '#34d399', opacity: 0.22, spin: pos(0, 0, 0.006) }],
+    labels: [{ text: 'balanced replicas', position: pos(0, -1.55), color: '#bbf7d0' }],
+  },
+  SVC: {
+    title: 'SVC',
+    color: '#f472b6',
+    nodes: [
+      { symbol: 'API', position: pos(-1.55, 0), pulseOffset: 0 },
+      { symbol: 'APP', position: pos(1.35, 0), pulseOffset: 0.55 },
+    ],
+    beams: [{ start: pos(-1.55, 0), end: pos(1.35, 0), color: '#f472b6', opacity: 0.72 }],
+    flows: [
+      { path: [pos(-1.55, 0), pos(1.35, 0)], offset: 0, color: '#fbcfe8', speed: 0.36 },
+      { path: [pos(1.35, -0.18), pos(-1.55, -0.18)], offset: 0.5, color: '#ffffff', speed: 0.22, size: 0.055 },
+    ],
+    boxes: [{ position: pos(0, 0, -0.06), size: pos(3.65, 1.45, 0.04), color: '#831843', opacity: 0.16 }],
+    labels: [{ text: 'service boundary', position: pos(0, -1.1), color: '#fbcfe8' }],
+  },
+  CRUD: {
+    title: 'CRUD',
+    color: '#f97316',
+    nodes: [
+      { symbol: 'APP', position: pos(-1.5, 0), pulseOffset: 0 },
+      { symbol: 'DB', position: pos(1.45, 0), pulseOffset: 0.65 },
+    ],
+    beams: [
+      { start: pos(-1.5, 0.16), end: pos(1.45, 0.16), color: '#fb923c', opacity: 0.64 },
+      { start: pos(1.45, -0.16), end: pos(-1.5, -0.16), color: '#fde68a', opacity: 0.46 },
+    ],
+    flows: [
+      { path: [pos(-1.5, 0.16), pos(1.45, 0.16)], offset: 0, color: '#fb923c', speed: 0.28 },
+      { path: [pos(1.45, -0.16), pos(-1.5, -0.16)], offset: 0.45, color: '#fde68a', speed: 0.22, size: 0.055 },
+    ],
+    rings: [{ position: pos(1.45, 0), radius: 0.92, color: '#fb923c', opacity: 0.22, rotation: pos(Math.PI / 2, 0, 0), spin: pos(0, 0.006, 0) }],
+    labels: [
+      { text: 'write', position: pos(0, 0.48), color: '#fed7aa' },
+      { text: 'read', position: pos(0, -0.55), color: '#fef3c7' },
+    ],
+  },
+  FAST: {
+    title: 'FAST',
+    color: '#4ade80',
+    nodes: [
+      { symbol: 'APP', position: pos(-1.35, 0), pulseOffset: 0 },
+      { symbol: 'CACHE', position: pos(1.25, 0), pulseOffset: 0.45 },
+    ],
+    beams: [
+      { start: pos(-1.35, 0), end: pos(1.25, 0), color: '#4ade80', opacity: 0.78 },
+      { start: pos(1.25, -0.26), end: pos(-1.35, -0.26), color: '#bbf7d0', opacity: 0.38 },
+    ],
+    flows: [
+      { path: [pos(-1.35, 0), pos(1.25, 0), pos(-1.35, -0.26)], offset: 0, color: '#bbf7d0', speed: 0.52, size: 0.07 },
+      { path: [pos(-1.35, 0), pos(1.25, 0), pos(-1.35, -0.26)], offset: 0.25, color: '#ffffff', speed: 0.52, size: 0.055 },
+      { path: [pos(-1.35, 0), pos(1.25, 0), pos(-1.35, -0.26)], offset: 0.5, color: '#86efac', speed: 0.52, size: 0.055 },
+    ],
+    rings: [
+      { position: pos(1.25, 0), radius: 0.88, color: '#4ade80', opacity: 0.34, spin: pos(0, 0.005, 0.008) },
+      { position: pos(1.25, 0), radius: 1.12, color: '#bbf7d0', opacity: 0.18, rotation: pos(Math.PI / 2, 0, 0), spin: pos(0.006, 0, 0) },
+    ],
+    labels: [{ text: 'hot path', position: pos(0, -1.15), color: '#bbf7d0' }],
+  },
+  ASYNC: {
+    title: 'ASYNC',
+    color: '#60a5fa',
+    nodes: [
+      { symbol: 'APP', position: pos(-1.65, 0.72), pulseOffset: 0 },
+      { symbol: 'QUEUE', position: pos(0.35, 0), pulseOffset: 0.4 },
+      { symbol: 'ASYNC', position: pos(1.75, -0.75), pulseOffset: 0.85 },
+    ],
+    beams: [
+      { start: pos(-1.65, 0.72), end: pos(0.35, 0), color: '#60a5fa', opacity: 0.58 },
+      { start: pos(0.35, 0), end: pos(1.75, -0.75), color: '#93c5fd', opacity: 0.38, radius: 0.016 },
+    ],
+    flows: [
+      { path: [pos(-1.65, 0.72), pos(0.35, 0)], offset: 0, color: '#bfdbfe', speed: 0.24, kind: 'box' },
+      { path: [pos(0.35, 0), pos(1.75, -0.75)], offset: 0.55, color: '#60a5fa', speed: 0.16, kind: 'box' },
+    ],
+    boxes: [
+      { position: pos(0.35, 0.42, -0.04), size: pos(0.95, 0.12, 0.05), color: '#60a5fa', opacity: 0.26 },
+      { position: pos(0.35, 0.15, -0.04), size: pos(0.95, 0.12, 0.05), color: '#60a5fa', opacity: 0.22 },
+      { position: pos(0.35, -0.12, -0.04), size: pos(0.95, 0.12, 0.05), color: '#60a5fa', opacity: 0.18 },
+    ],
+    labels: [{ text: 'decoupled work', position: pos(0, -1.45), color: '#bfdbfe' }],
+  },
+  READ: {
+    title: 'READ',
+    color: '#a3e635',
+    nodes: [
+      { symbol: 'DB', position: pos(-1.45, -0.35), pulseOffset: 0 },
+      { symbol: 'CACHE', position: pos(1.15, 0.38), pulseOffset: 0.5 },
+      { symbol: 'READ', position: pos(2.15, -0.65), pulseOffset: 0.9 },
+    ],
+    beams: [
+      { start: pos(-1.45, -0.35), end: pos(1.15, 0.38), color: '#a3e635', opacity: 0.48 },
+      { start: pos(1.15, 0.38), end: pos(2.15, -0.65), color: '#bef264', opacity: 0.68 },
+    ],
+    flows: [
+      { path: [pos(-1.45, -0.35), pos(1.15, 0.38)], offset: 0.2, color: '#d9f99d', speed: 0.14, size: 0.055 },
+      { path: [pos(1.15, 0.38), pos(2.15, -0.65)], offset: 0, color: '#ffffff', speed: 0.42 },
+      { path: [pos(1.15, 0.38), pos(2.15, -0.65)], offset: 0.35, color: '#bef264', speed: 0.42 },
+    ],
+    rings: [{ position: pos(1.15, 0.38), radius: 0.95, color: '#a3e635', opacity: 0.26, spin: pos(0, 0, 0.008) }],
+    labels: [{ text: 'cache first reads', position: pos(0, -1.35), color: '#d9f99d' }],
+  },
+  JOBDB: {
+    title: 'JOBDB',
+    color: '#818cf8',
+    nodes: [
+      { symbol: 'QUEUE', position: pos(-1.45, 0), pulseOffset: 0 },
+      { symbol: 'DB', position: pos(1.45, 0), pulseOffset: 0.6 },
+    ],
+    beams: [{ start: pos(-1.45, 0), end: pos(1.45, 0), color: '#818cf8', opacity: 0.64 }],
+    flows: [
+      { path: [pos(-1.45, 0), pos(1.45, 0)], offset: 0, color: '#c7d2fe', speed: 0.23, kind: 'box' },
+      { path: [pos(-1.45, 0), pos(1.45, 0)], offset: 0.2, color: '#ffffff', speed: 0.23, kind: 'box', size: 0.06 },
+      { path: [pos(-1.45, 0), pos(1.45, 0)], offset: 0.4, color: '#a5b4fc', speed: 0.23, kind: 'box', size: 0.06 },
+    ],
+    boxes: [
+      { position: pos(-1.45, 0.55, -0.04), size: pos(1.1, 0.12, 0.05), color: '#818cf8', opacity: 0.24 },
+      { position: pos(-1.45, 0.32, -0.04), size: pos(1.1, 0.12, 0.05), color: '#818cf8', opacity: 0.2 },
+      { position: pos(-1.45, -0.55, -0.04), size: pos(1.1, 0.12, 0.05), color: '#818cf8', opacity: 0.18 },
+    ],
+    labels: [{ text: 'durable job state', position: pos(0, -1.25), color: '#c7d2fe' }],
+  },
+  BFF: {
+    title: 'BFF',
+    color: '#06b6d4',
+    nodes: [
+      { symbol: 'CDN', position: pos(-1.85, 0.85), pulseOffset: 0 },
+      { symbol: 'API', position: pos(-1.85, -0.85), pulseOffset: 0.45 },
+      { symbol: 'BFF', position: pos(0.35, 0), pulseOffset: 0.9 },
+      { symbol: 'CLIENT', position: pos(2.15, 0), pulseOffset: 1.2 },
+    ],
+    beams: [
+      { start: pos(-1.85, 0.85), end: pos(0.35, 0), color: '#22d3ee', opacity: 0.58 },
+      { start: pos(-1.85, -0.85), end: pos(0.35, 0), color: '#f472b6', opacity: 0.58 },
+      { start: pos(0.35, 0), end: pos(2.15, 0), color: '#06b6d4', opacity: 0.68 },
+    ],
+    flows: [
+      { path: [pos(-1.85, 0.85), pos(0.35, 0), pos(2.15, 0)], offset: 0, color: '#67e8f9', speed: 0.3 },
+      { path: [pos(-1.85, -0.85), pos(0.35, 0), pos(2.15, 0)], offset: 0.45, color: '#fbcfe8', speed: 0.26 },
+    ],
+    boxes: [{ position: pos(0.35, 0, -0.05), size: pos(1.35, 1.35, 0.05), color: '#083344', opacity: 0.22 }],
+    labels: [{ text: 'asset + api facade', position: pos(0, -1.45), color: '#a5f3fc' }],
+  },
+  STATIC: {
+    title: 'STATIC',
+    color: '#67e8f9',
+    nodes: [
+      { symbol: 'CLIENT', position: pos(-1.75, 0), pulseOffset: 0 },
+      { symbol: 'CDN', position: pos(0.25, 0.35), pulseOffset: 0.5 },
+      { symbol: 'STATIC', position: pos(1.8, -0.45), pulseOffset: 0.9 },
+    ],
+    beams: [
+      { start: pos(-1.75, 0), end: pos(0.25, 0.35), color: '#38bdf8', opacity: 0.56 },
+      { start: pos(0.25, 0.35), end: pos(1.8, -0.45), color: '#67e8f9', opacity: 0.68 },
+    ],
+    flows: [
+      { path: [pos(-1.75, 0), pos(0.25, 0.35), pos(1.8, -0.45)], offset: 0, color: '#ffffff', speed: 0.34, kind: 'box' },
+      { path: [pos(0.25, 0.35), pos(1.8, -0.45)], offset: 0.42, color: '#67e8f9', speed: 0.38, kind: 'box' },
+    ],
+    boxes: [
+      { position: pos(2.25, 0.28, -0.04), size: pos(0.42, 0.3, 0.04), color: '#e0f2fe', opacity: 0.28 },
+      { position: pos(2.45, -0.18, -0.04), size: pos(0.34, 0.42, 0.04), color: '#67e8f9', opacity: 0.22 },
+    ],
+    labels: [{ text: 'static assets at edge', position: pos(0, -1.35), color: '#cffafe' }],
+  },
+  APIAPP: {
+    title: 'APIAPP',
+    color: '#fb7185',
+    scale: 0.9,
+    nodes: [
+      { symbol: 'API', position: pos(-2.05, 0.6), pulseOffset: 0 },
+      { symbol: 'APP', position: pos(0, 0), pulseOffset: 0.45 },
+      { symbol: 'DB', position: pos(2.05, -0.6), pulseOffset: 0.9 },
+    ],
+    beams: [
+      { start: pos(-2.05, 0.6), end: pos(0, 0), color: '#fb7185', opacity: 0.64 },
+      { start: pos(0, 0), end: pos(2.05, -0.6), color: '#fb923c', opacity: 0.6 },
+      { start: pos(2.05, -0.78), end: pos(0, -0.18), color: '#fed7aa', opacity: 0.34, radius: 0.014 },
+    ],
+    flows: [
+      { path: [pos(-2.05, 0.6), pos(0, 0), pos(2.05, -0.6)], offset: 0, color: '#fecdd3', speed: 0.25 },
+      { path: [pos(2.05, -0.78), pos(0, -0.18), pos(-2.05, 0.42)], offset: 0.52, color: '#ffffff', speed: 0.2, size: 0.055 },
+    ],
+    boxes: [{ position: pos(0, 0, -0.08), size: pos(4.75, 1.75, 0.05), color: '#4c0519', opacity: 0.15 }],
+    labels: [{ text: 'api surface + durable service', position: pos(0, -1.45), color: '#fecdd3' }],
+  },
+  SCALE: {
+    title: 'SCALE',
+    color: '#22c55e',
+    scale: 0.9,
+    nodes: [
+      { symbol: 'APP', position: pos(-0.45, 0), pulseOffset: 0 },
+      { symbol: 'CACHE', position: pos(1.55, 0.9), pulseOffset: 0.45 },
+      { symbol: 'QUEUE', position: pos(1.55, -0.9), pulseOffset: 0.9 },
+      { symbol: 'SCALE', position: pos(-2.1, 0), pulseOffset: 1.25 },
+    ],
+    beams: [
+      { start: pos(-2.1, 0), end: pos(-0.45, 0), color: '#22c55e', opacity: 0.62 },
+      { start: pos(-0.45, 0), end: pos(1.55, 0.9), color: '#4ade80', opacity: 0.62 },
+      { start: pos(-0.45, 0), end: pos(1.55, -0.9), color: '#60a5fa', opacity: 0.55 },
+    ],
+    flows: [
+      { path: [pos(-2.1, 0), pos(-0.45, 0), pos(1.55, 0.9), pos(-0.45, 0)], offset: 0, color: '#bbf7d0', speed: 0.42 },
+      { path: [pos(-0.45, 0), pos(1.55, -0.9)], offset: 0.35, color: '#bfdbfe', speed: 0.2, kind: 'box' },
+      { path: [pos(-0.45, 0), pos(1.55, -0.9)], offset: 0.62, color: '#60a5fa', speed: 0.2, kind: 'box', size: 0.06 },
+    ],
+    rings: [
+      { position: pos(1.55, 0.9), radius: 0.82, color: '#4ade80', opacity: 0.28, spin: pos(0, 0, 0.01) },
+      { position: pos(-0.45, 0), radius: 1.5, color: '#22c55e', opacity: 0.14, rotation: pos(0, Math.PI / 2, 0), spin: pos(0, 0.004, 0) },
+    ],
+    labels: [{ text: 'fast reads + async load', position: pos(0, -1.65), color: '#bbf7d0' }],
+  },
+  CONTENT: {
+    title: 'CONTENT',
+    color: '#a78bfa',
+    scale: 0.88,
+    nodes: [
+      { symbol: 'CLIENT', position: pos(-2.25, 0.55), pulseOffset: 0 },
+      { symbol: 'CDN', position: pos(-0.45, 0.45), pulseOffset: 0.35 },
+      { symbol: 'OBJ', position: pos(-0.45, -1), pulseOffset: 0.7 },
+      { symbol: 'CONTENT', position: pos(1.75, -0.05), pulseOffset: 1.05 },
+    ],
+    beams: [
+      { start: pos(-2.25, 0.55), end: pos(-0.45, 0.45), color: '#67e8f9', opacity: 0.62 },
+      { start: pos(-0.45, -1), end: pos(-0.45, 0.45), color: '#c084fc', opacity: 0.48 },
+      { start: pos(-0.45, 0.45), end: pos(1.75, -0.05), color: '#a78bfa', opacity: 0.64 },
+    ],
+    flows: [
+      { path: [pos(-0.45, -1), pos(-0.45, 0.45), pos(1.75, -0.05)], offset: 0, color: '#e9d5ff', speed: 0.22, kind: 'box' },
+      { path: [pos(-2.25, 0.55), pos(-0.45, 0.45), pos(1.75, -0.05)], offset: 0.42, color: '#67e8f9', speed: 0.3, kind: 'box' },
+    ],
+    boxes: [
+      { position: pos(2.25, 0.65, -0.04), size: pos(0.5, 0.34, 0.04), color: '#e9d5ff', opacity: 0.24 },
+      { position: pos(2.5, 0.05, -0.04), size: pos(0.34, 0.44, 0.04), color: '#67e8f9', opacity: 0.22 },
+      { position: pos(2.1, -0.7, -0.04), size: pos(0.58, 0.3, 0.04), color: '#c084fc', opacity: 0.2 },
+    ],
+    labels: [{ text: 'frontend + media delivery', position: pos(0, -1.65), color: '#e9d5ff' }],
+  },
+  DATA: {
+    title: 'DATA',
+    color: '#f59e0b',
+    scale: 0.9,
+    nodes: [
+      { symbol: 'APP', position: pos(-1.95, 0), pulseOffset: 0 },
+      { symbol: 'DB', position: pos(0.45, -0.35), pulseOffset: 0.45 },
+      { symbol: 'CACHE', position: pos(1.95, 0.72), pulseOffset: 0.9 },
+    ],
+    beams: [
+      { start: pos(-1.95, 0), end: pos(0.45, -0.35), color: '#fb923c', opacity: 0.62 },
+      { start: pos(0.45, -0.35), end: pos(1.95, 0.72), color: '#a3e635', opacity: 0.52 },
+      { start: pos(1.95, 0.72), end: pos(-1.95, 0.18), color: '#fde68a', opacity: 0.34, radius: 0.014 },
+    ],
+    flows: [
+      { path: [pos(-1.95, 0), pos(0.45, -0.35)], offset: 0, color: '#fed7aa', speed: 0.25 },
+      { path: [pos(0.45, -0.35), pos(1.95, 0.72), pos(-1.95, 0.18)], offset: 0.45, color: '#d9f99d', speed: 0.22 },
+    ],
+    rings: [
+      { position: pos(0.45, -0.35), radius: 0.88, color: '#fb923c', opacity: 0.18, rotation: pos(Math.PI / 2, 0, 0), spin: pos(0, 0.005, 0) },
+      { position: pos(1.95, 0.72), radius: 0.82, color: '#a3e635', opacity: 0.22, spin: pos(0, 0, 0.009) },
+    ],
+    labels: [{ text: 'writes + optimized reads', position: pos(0, -1.55), color: '#fde68a' }],
+  },
+  WORKER: {
+    title: 'WORKER',
+    color: '#818cf8',
+    scale: 0.9,
+    nodes: [
+      { symbol: 'QUEUE', position: pos(-1.95, 0.55), pulseOffset: 0 },
+      { symbol: 'WORKER', position: pos(0, 0), pulseOffset: 0.45 },
+      { symbol: 'DB', position: pos(1.95, -0.55), pulseOffset: 0.9 },
+    ],
+    beams: [
+      { start: pos(-1.95, 0.55), end: pos(0, 0), color: '#818cf8', opacity: 0.66 },
+      { start: pos(0, 0), end: pos(1.95, -0.55), color: '#a5b4fc', opacity: 0.58 },
+      { start: pos(1.95, -0.8), end: pos(-1.95, 0.3), color: '#c7d2fe', opacity: 0.2, radius: 0.012 },
+    ],
+    flows: [
+      { path: [pos(-1.95, 0.55), pos(0, 0), pos(1.95, -0.55)], offset: 0, color: '#ffffff', speed: 0.24, kind: 'box' },
+      { path: [pos(-1.95, 0.55), pos(0, 0), pos(1.95, -0.55)], offset: 0.28, color: '#c7d2fe', speed: 0.24, kind: 'box', size: 0.06 },
+      { path: [pos(1.95, -0.8), pos(0, -0.45), pos(-1.95, 0.3)], offset: 0.62, color: '#818cf8', speed: 0.12, size: 0.05 },
+    ],
+    boxes: [{ position: pos(0, 0, -0.05), size: pos(1.15, 1.15, 0.05), color: '#312e81', opacity: 0.2 }],
+    labels: [{ text: 'retryable background work', position: pos(0, -1.55), color: '#c7d2fe' }],
+  },
+};
+
+const SystemVisual: React.FC<{
+  symbol: string;
+  scaleRef: React.MutableRefObject<number>;
+  opacityTarget: number;
+}> = ({ symbol, scaleRef, opacityTarget }) => {
+  const preset = VISUAL_PRESETS[symbol];
+  if (!preset) return null;
+  return <PresetDiagram preset={preset} scaleRef={scaleRef} opacityTarget={opacityTarget} />;
 };
 
 // --- BIG EXPLOSION SHADER (Mushroom Cloud) ---
@@ -891,6 +1449,10 @@ const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combine
         return <RouteComponent scaleRef={scaleRef} opacityTarget={opacity} />;
     }
 
+    if (VISUAL_PRESETS[element.symbol]) {
+        return <SystemVisual symbol={element.symbol} scaleRef={scaleRef} opacityTarget={opacity} />;
+    }
+
     if (element.symbol === 'H2O' && !combinedElement) return <H2OMolecule scaleRef={scaleRef} />;
     if (element.symbol === 'NaCl' && !combinedElement) return <SaltLattice scaleRef={scaleRef} />;
     if (element.symbol === 'HCl' && !combinedElement) return <HClMolecule scaleRef={scaleRef} />;
@@ -925,6 +1487,10 @@ const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combine
 
     if (combinedElement.symbol === 'ROUTE') {
         return <RouteComponent scaleRef={combinedPinchRef} opacityTarget={opacities.combined} />;
+    }
+
+    if (VISUAL_PRESETS[combinedElement.symbol]) {
+        return <SystemVisual symbol={combinedElement.symbol} scaleRef={combinedPinchRef} opacityTarget={opacities.combined} />;
     }
 
     if (combinedElement.symbol === 'H2O') {

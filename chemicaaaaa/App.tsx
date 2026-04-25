@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import Scene from './components/Scene';
 import HandTracker from './components/HandTracker';
 import UIOverlay from './components/UIOverlay';
@@ -10,9 +10,46 @@ import { TrackingData, ElementData, GameState } from './types';
 import successChime from './assets/sounds/success-chime.mp3';
 import softError from './assets/sounds/soft-error.mp3';
 
+const createIdleTrackingData = (cameraAspect = 1.77): TrackingData => ({
+  left: {
+    pinchDistance: 0.5,
+    isPinching: false,
+    isPointing: false,
+    position: { x: 0, y: 0, z: 0 },
+    indexPosition: { x: 0, y: 0, z: 0 },
+    isDetected: false,
+    isPresent: false,
+  },
+  right: {
+    pinchDistance: 0.5,
+    isPinching: false,
+    isPointing: false,
+    position: { x: 0, y: 0, z: 0 },
+    indexPosition: { x: 0, y: 0, z: 0 },
+    isDetected: false,
+    isPresent: false,
+  },
+  isClapping: false,
+  isResetGesture: false,
+  isClosedFist: false,
+  isSixtySevenGesture: false,
+  handDistance: 1000,
+  cameraAspect,
+});
+
 const App: React.FC = () => {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const visualPreviewElement = useMemo(() => {
+    if (!import.meta.env.DEV) return null;
+
+    const symbol = new URLSearchParams(window.location.search).get('visual')?.toUpperCase();
+    if (!symbol) return null;
+
+    return COMBINATIONS.find(combination => combination.result.symbol === symbol)?.result
+      ?? ELEMENTS.find(element => element.symbol === symbol)
+      ?? null;
+  }, []);
   
   const [leftElement, setLeftElement] = useState<ElementData>(ELEMENTS[0]);
   const [rightElement, setRightElement] = useState<ElementData>(ELEMENTS[3]); 
@@ -25,6 +62,11 @@ const App: React.FC = () => {
   const [deathReason, setDeathReason] = useState<string>('');
   const [showSixtySeven, setShowSixtySeven] = useState(false);
   const sixtySevenGestureProcessedRef = useRef(false);
+  const displayedCombinedElement = visualPreviewElement ?? combinedElement;
+  const displayedMessage = visualPreviewElement
+    ? `VISUAL MAPPING: ${visualPreviewElement.name.toUpperCase()}`
+    : message;
+  const shouldShowLab = isCameraReady || Boolean(visualPreviewElement);
   
   // Quiz Mode State
   const [quizMode, setQuizMode] = useState<{
@@ -183,16 +225,7 @@ const App: React.FC = () => {
   const fusionErrorRef = useRef(false);
   const lastInteractionTime = useRef(0);
 
-  const trackingDataRef = useRef<TrackingData>({
-    left: { pinchDistance: 0.5, isPinching: false, isPointing: false, position: {x: 0, y: 0, z: 0}, indexPosition: {x: 0, y: 0, z: 0}, isPresent: false },
-    right: { pinchDistance: 0.5, isPinching: false, isPointing: false, position: {x: 0, y: 0, z: 0}, indexPosition: {x: 0, y: 0, z: 0}, isPresent: false },
-    isClapping: false,
-    isResetGesture: false,
-    isClosedFist: false,
-    isSixtySevenGesture: false,
-    handDistance: 1000,
-    cameraAspect: 1.77
-  });
+  const trackingDataRef = useRef<TrackingData>(createIdleTrackingData());
 
   const lastLeftHoverRef = useRef<string | null>(null);
   const lastRightHoverRef = useRef<string | null>(null);
@@ -203,6 +236,15 @@ const App: React.FC = () => {
   const handleCameraReady = useCallback(() => {
     setIsCameraReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!isDashboardOpen) return;
+
+    trackingDataRef.current = createIdleTrackingData(trackingDataRef.current.cameraAspect);
+    lastLeftHoverRef.current = null;
+    lastRightHoverRef.current = null;
+    clapStartRef.current = 0;
+  }, [isDashboardOpen]);
 
   const checkCombination = useCallback(() => {
     if (combinedElement || gameState === 'dead') return;
@@ -428,10 +470,8 @@ const App: React.FC = () => {
   }, [labSlots, labCreatedSlots, isDashboardOpen, quizMode]);
 
   const onTrackingUpdate = useCallback((data: TrackingData) => {
-    // Disable all gesture effects when dashboard is open
     if (isDashboardOpen) {
-      // Still update the ref for visual tracking (mascot, etc.) but don't process gestures
-      trackingDataRef.current = data;
+      trackingDataRef.current = createIdleTrackingData(data.cameraAspect);
       return;
     }
     
@@ -574,9 +614,11 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden select-none">
-      <HandTracker onUpdate={onTrackingUpdate} onCameraReady={handleCameraReady} />
+      {!visualPreviewElement && !isDashboardOpen && (
+        <HandTracker onUpdate={onTrackingUpdate} onCameraReady={handleCameraReady} />
+      )}
       
-      {!isCameraReady && (
+      {!shouldShowLab && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black text-white">
           <div className="flex flex-col items-center">
             <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-6"></div>
@@ -585,19 +627,21 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {isCameraReady && (
+      {shouldShowLab && (
         <>
+          {!isDashboardOpen && (
+            <>
             <Scene 
                 leftElement={leftElement} 
                 rightElement={rightElement} 
-                combinedElement={combinedElement}
+                combinedElement={displayedCombinedElement}
                 trackingData={trackingDataRef}
             />
             <UIOverlay
                 leftElement={leftElement}
                 rightElement={rightElement}
-                combinedElement={combinedElement}
-                message={message}
+                combinedElement={displayedCombinedElement}
+                message={displayedMessage}
                 trackingRef={trackingDataRef}
                 labSlots={labSlots}
                 labCreatedSlots={labCreatedSlots}
@@ -608,6 +652,8 @@ const App: React.FC = () => {
                 deathReason={deathReason}
                 showSixtySeven={showSixtySeven}
             />
+            </>
+          )}
             <Dashboard 
                isOpen={isDashboardOpen}
                onClose={() => {
@@ -639,12 +685,14 @@ const App: React.FC = () => {
                labSlots={labSlots}
                onStartQuiz={startQuiz}
             />
+            {!isDashboardOpen && (
             <MascotGuide 
-               message={message}
+               message={displayedMessage}
                isDashboardOpen={isDashboardOpen}
                trackingData={trackingDataRef}
-               combinedElement={combinedElement}
+               combinedElement={displayedCombinedElement}
             />
+            )}
         </>
       )}
     </div>
