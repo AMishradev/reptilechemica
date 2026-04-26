@@ -422,13 +422,74 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none overflow-visible ">
-       {/* Speech Bubble */}
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end pointer-events-none overflow-visible ">
+       {isChatOpen ? (
+        <div className="mb-3 w-[min(22rem,calc(100vw-2rem))] max-h-[min(30rem,calc(100vh-11rem))] pointer-events-auto rounded-2xl border border-cyan-400/35 bg-[#031014]/95 shadow-[0_0_32px_rgba(34,211,238,0.24)] backdrop-blur-xl overflow-hidden">
+          <div className="flex items-center justify-between border-b border-cyan-400/20 px-4 py-3">
+            <div>
+              <div className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100">Atomis</div>
+              <div className="font-mono text-[10px] text-cyan-200/60">Agentverse brain</div>
+            </div>
+            <button
+              type="button"
+              aria-label="Close Atomis chat"
+              onClick={() => setIsChatOpen(false)}
+              className="h-8 w-8 rounded-full border border-white/10 bg-white/5 font-mono text-sm text-cyan-100 transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
+            >
+              x
+            </button>
+          </div>
+
+          <div ref={chatScrollRef} className="atomis-chat-scroll max-h-80 overflow-y-auto px-4 py-3 space-y-3">
+            {chatMessages.map(item => (
+              <div
+                key={item.id}
+                className={`flex ${item.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 font-mono text-xs leading-relaxed ${
+                    item.role === 'user'
+                      ? 'rounded-br-sm bg-cyan-300 text-black'
+                      : 'rounded-bl-sm border border-cyan-400/20 bg-white/10 text-cyan-50'
+                  }`}
+                >
+                  {item.content}
+                </div>
+              </div>
+            ))}
+            {isChatLoading && (
+              <div className="flex justify-start">
+                <div className="rounded-2xl rounded-bl-sm border border-cyan-400/20 bg-white/10 px-3 py-2 font-mono text-xs text-cyan-100">
+                  Thinking...
+                </div>
+              </div>
+            )}
+          </div>
+
+          <form onSubmit={sendChatMessage} className="flex gap-2 border-t border-cyan-400/20 p-3">
+            <input
+              value={chatInput}
+              onChange={event => setChatInput(event.target.value)}
+              disabled={isChatLoading}
+              placeholder="Ask about the lab"
+              className="min-w-0 flex-1 rounded-xl border border-cyan-400/25 bg-black/45 px-3 py-2 font-mono text-xs text-cyan-50 placeholder:text-cyan-100/35 outline-none transition-colors focus:border-cyan-300"
+            />
+            <button
+              type="submit"
+              disabled={!chatInput.trim() || isChatLoading}
+              className="rounded-xl border border-cyan-300/50 bg-cyan-300 px-3 py-2 font-mono text-xs font-semibold text-black transition-colors hover:bg-cyan-200 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-white/35"
+            >
+              Send
+            </button>
+          </form>
+        </div>
+       ) : (
        <div className="mb-2 max-w-xs bg-white/10 backdrop-blur-md border border-cyan-500/30 p-4 rounded-t-2xl rounded-bl-2xl rounded-br-none text-right shadow-[0_0_20px_rgba(34,211,238,0.2)] animate-bounce-slight origin-bottom-right transform transition-all">
           <p className="text-cyan-100 font-mono text-sm leading-relaxed">
             {mascotText}
           </p>
        </div>
+       )}
 
        {/* 3D Avatar Container */}
        <div className="w-40 h-40 relative group pointer-events-auto overflow-visible">
