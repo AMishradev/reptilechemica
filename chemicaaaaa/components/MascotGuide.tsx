@@ -515,6 +515,20 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
          .animate-bounce-slight {
            animation: bounce-slight 3s ease-in-out infinite;
          }
+         .atomis-chat-scroll {
+           scrollbar-color: rgba(103, 232, 249, 0.5) rgba(3, 16, 20, 0.9);
+           scrollbar-width: thin;
+         }
+         .atomis-chat-scroll::-webkit-scrollbar {
+           width: 8px;
+         }
+         .atomis-chat-scroll::-webkit-scrollbar-track {
+           background: rgba(3, 16, 20, 0.9);
+         }
+         .atomis-chat-scroll::-webkit-scrollbar-thumb {
+           background: rgba(103, 232, 249, 0.48);
+           border-radius: 999px;
+         }
        `}</style>
     </div>
   );
