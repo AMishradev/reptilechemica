@@ -1,6 +1,6 @@
 {
   "name": "Reptile Chemica",
-  "description": "Interactive real-time hand-tracked chemistry and system design lab.",
+  "description": "Interactive real-time hand-tracked system design interview prep.",
   "requestFramePermissions": [
     "camera"
   ]

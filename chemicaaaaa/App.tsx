@@ -116,7 +116,7 @@ const App: React.FC = () => {
   const [rightElement, setRightElement] = useState<ElementData>(ELEMENTS[3]); 
   
   const [combinedElement, setCombinedElement] = useState<ElementData | null>(null);
-  const [message, setMessage] = useState("LAB READY");
+  const [message, setMessage] = useState("PREP READY");
   const [mascotAdvice, setMascotAdvice] = useState<string | null>(null);
   const [savedElements, setSavedElements] = useState<ElementData[]>([]);
   
@@ -154,16 +154,16 @@ const App: React.FC = () => {
   const [labSlots, setLabSlots] = useState<ElementData[]>([]); // Dashboard slots (8 manually selected)
   const [labCreatedSlots, setLabCreatedSlots] = useState<ElementData[]>([]); // Lab-created slots (8 auto-discovered)
 
-  // Load saved history and lab slots on mount
+  // Load saved history and workspace slots on mount
   useEffect(() => {
     const validCreatedSymbols = new Set(COMBINATIONS.map(c => c.result.symbol));
     const validBaseSymbols = new Set(ELEMENTS.map(e => e.symbol));
     const validSymbols = new Set([...validBaseSymbols, ...validCreatedSymbols]);
 
-    const history = JSON.parse(localStorage.getItem('chemLabHistory') || '[]')
+    const history = JSON.parse(localStorage.getItem('systemDesignPrepHistory') || '[]')
       .filter((item: ElementData) => validSymbols.has(item.symbol));
     setSavedElements(history);
-    localStorage.setItem('chemLabHistory', JSON.stringify(history));
+    localStorage.setItem('systemDesignPrepHistory', JSON.stringify(history));
     
     // Load dashboard slots (manually selected)
     const savedSlots = localStorage.getItem('labSlots');
@@ -216,10 +216,10 @@ const App: React.FC = () => {
   }, [leftElement, rightElement, gameState, message, quizMode.active, spotifyBuild.active]);
 
   const saveElement = (element: ElementData) => {
-      const history = JSON.parse(localStorage.getItem('chemLabHistory') || '[]');
+      const history = JSON.parse(localStorage.getItem('systemDesignPrepHistory') || '[]');
       if (!history.find((e: ElementData) => e.symbol === element.symbol)) {
           const newHistory = [element, ...history];
-          localStorage.setItem('chemLabHistory', JSON.stringify(newHistory));
+          localStorage.setItem('systemDesignPrepHistory', JSON.stringify(newHistory));
           setSavedElements(newHistory);
       }
       
@@ -356,7 +356,7 @@ const App: React.FC = () => {
     setMessage("Design Spotify: assemble the streaming platform");
   }, [labSlots]);
 
-  const returnFromSpotifyChallenge = useCallback((nextMessage = "LAB READY") => {
+  const returnFromSpotifyChallenge = useCallback((nextMessage = "PREP READY") => {
     if (preSpotifyLabSlotsRef.current) {
       setLabSlots(preSpotifyLabSlotsRef.current);
       localStorage.setItem('labSlots', JSON.stringify(preSpotifyLabSlotsRef.current));
@@ -398,19 +398,19 @@ const App: React.FC = () => {
     if (spotifyBuild.builtSymbols.length >= spotifyBuild.targetPieceCount) {
       setMessage("Spotify design passed. Returning...");
       setMascotAdvice("Solid draft: the map has enough working paths to represent a real streaming platform.");
-      setTimeout(() => returnFromSpotifyChallenge("LAB READY"), 2500);
+      setTimeout(() => returnFromSpotifyChallenge("PREP READY"), 2500);
       return;
     }
 
     setMessage(`Spotify design failed. Add ${spotifyBuild.targetPieceCount - spotifyBuild.builtSymbols.length} more pieces`);
     setMascotAdvice("Add a few more working paths before submitting the design.");
     fusionErrorRef.current = true;
-    setTimeout(() => returnFromSpotifyChallenge("LAB READY"), 2600);
+    setTimeout(() => returnFromSpotifyChallenge("PREP READY"), 2600);
   }, [returnFromSpotifyChallenge, spotifyBuild.active, spotifyBuild.builtSymbols, spotifyBuild.targetPieceCount]);
 
   const stopSpotifyChallenge = useCallback(() => {
     if (!spotifyBuild.active) return;
-    returnFromSpotifyChallenge("LAB READY");
+    returnFromSpotifyChallenge("PREP READY");
   }, [returnFromSpotifyChallenge, spotifyBuild.active]);
 
   useEffect(() => {
@@ -484,7 +484,7 @@ const App: React.FC = () => {
                      setCombinedElement(null);
                      setQuizMode({ active: false, difficulty: null, targetSymbol: null, targetName: null });
                      setIsDashboardOpen(true);
-                     setMessage("LAB READY");
+                     setMessage("PREP READY");
                  }, 3000);
                  return;
              }
@@ -503,14 +503,14 @@ const App: React.FC = () => {
                      setCombinedElement(null);
                      setQuizMode({ active: false, difficulty: null, targetSymbol: null, targetName: null });
                      setIsDashboardOpen(true);
-                     setMessage("LAB READY");
+                     setMessage("PREP READY");
                  }, 3000);
                  return;
              }
         }
 
         setCombinedElement(combo.result);
-        setMessage(`FUSION SUCCESS: ${combo.result.name}`);
+        setMessage(`PATTERN BUILT: ${combo.result.name}`);
         fusionErrorRef.current = false;
     } else {
       const pairKey = getPairKey(leftElement.symbol, rightElement.symbol);
@@ -538,7 +538,7 @@ const App: React.FC = () => {
               setCombinedElement(null);
               setQuizMode({ active: false, difficulty: null, targetSymbol: null, targetName: null });
               setIsDashboardOpen(true);
-              setMessage("LAB READY");
+              setMessage("PREP READY");
               fusionErrorRef.current = false;
           }, 3000);
           return;
@@ -557,7 +557,7 @@ const App: React.FC = () => {
 	        !prevCombinedElementRef.current &&
 	        combinedElement.symbol !== 'BOOM' &&
 	        combinedElement.symbol !== 'X' &&
-	        (message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS') || message.includes('Spotify piece added'))) {
+	        (message.includes('PATTERN BUILT') || message.includes('QUIZ SUCCESS') || message.includes('Spotify piece added'))) {
       try {
         const audio = new Audio(successChime);
         audio.volume = 0.7;
@@ -586,7 +586,7 @@ const App: React.FC = () => {
     const isNewError = isError && message !== prevMessageRef.current;
     
     // Don't play if it's a success message
-	    const isSuccess = message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS') || message.includes('passed');
+	    const isSuccess = message.includes('PATTERN BUILT') || message.includes('QUIZ SUCCESS') || message.includes('passed');
     
     // Play error sound for new error messages
     if (isNewError && !isSuccess) {
@@ -678,7 +678,7 @@ const App: React.FC = () => {
       }
       if (hit.id === 'dashboard-close-btn') {
           setIsDashboardOpen(false);
-          setMessage("LAB READY");
+          setMessage("PREP READY");
           return;
       }
       if (hit.id.startsWith('dashboard-')) {
@@ -698,10 +698,10 @@ const App: React.FC = () => {
               lastInteractionTime.current = Date.now();
               if (hand === 'LEFT') {
                   setLeftElement(selectedElement);
-                  setMessage("ELEMENT SWAPPED (LEFT)");
+                  setMessage("COMPONENT SELECTED (LEFT)");
               } else {
                   setRightElement(selectedElement);
-                  setMessage("ELEMENT SWAPPED (RIGHT)");
+                  setMessage("COMPONENT SELECTED (RIGHT)");
               }
               setTimeout(() => {
                   if (spotifyBuild.active) {
@@ -709,7 +709,7 @@ const App: React.FC = () => {
                   } else if (quizMode.active && quizMode.targetName) {
                       setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
                   } else {
-                      setMessage("LAB READY");
+                      setMessage("PREP READY");
                   }
               }, 1000);
           }
@@ -750,12 +750,12 @@ const App: React.FC = () => {
         if (!isAlreadyUnlocked) {
           // Unlock Holmium (add to saved elements)
           saveElement(holmium);
-          setMessage("EASTER EGG DISCOVERED! NEW ELEMENT: HOLMIUM");
+          setMessage("EASTER EGG DISCOVERED! NEW COMPONENT: HOLMIUM");
           setTimeout(() => {
             if (quizMode.active && quizMode.targetName) {
               setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
             } else {
-              setMessage("LAB READY");
+              setMessage("PREP READY");
             }
           }, 4000);
         }
@@ -780,8 +780,8 @@ const App: React.FC = () => {
       if (combinedElement) {
         if (!quizMode.active && !spotifyBuild.active) {
           saveElement(combinedElement);
-          setMessage("ELEMENT SAVED TO SHELF");
-          setTimeout(() => setMessage("LAB READY"), 2000);
+          setMessage("COMPONENT SAVED TO COLLECTION");
+          setTimeout(() => setMessage("PREP READY"), 2000);
         }
         setCombinedElement(null);
         fusionErrorRef.current = false;
@@ -796,7 +796,7 @@ const App: React.FC = () => {
           } else if (quizMode.active && quizMode.targetName) {
             setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
           } else {
-            setMessage("LAB READY");
+            setMessage("PREP READY");
           }
         }
       }
@@ -813,7 +813,7 @@ const App: React.FC = () => {
         } else if (quizMode.active && quizMode.targetName) {
           setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
         } else {
-          setMessage("LAB READY");
+          setMessage("PREP READY");
         }
       }
       rememberPinchState();
@@ -879,7 +879,7 @@ const App: React.FC = () => {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black text-white">
           <div className="flex flex-col items-center">
             <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-6"></div>
-            <p className="font-['Space_Grotesk'] text-xl font-semibold animate-pulse tracking-normal text-cyan-500">Initializing lab</p>
+            <p className="font-['Space_Grotesk'] text-xl font-semibold animate-pulse tracking-normal text-cyan-500">Initializing prep workspace</p>
           </div>
         </div>
       )}

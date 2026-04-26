@@ -42,16 +42,16 @@ export function getMascotFact(el: ElementData): string {
 }
 
 export function getSystemMessage(status: string): string {
-  if (status.includes("LAB READY")) return "I'm ready for the next design. Pick two components.";
+  if (status.includes("PREP READY")) return "I'm ready for the next design prompt. Pick two components.";
   if (status.includes("Design Spotify")) return "Build the core streaming architecture, then submit when the system has enough pieces.";
   if (status.includes("Spotify piece added")) return "Good. That subsystem is now part of the Spotify architecture.";
   if (status.includes("Spotify design passed")) return "Architecture accepted. The map has enough working paths.";
   if (status.includes("Spotify design failed")) return "Add a few more assembled pieces before submitting.";
   if (status.includes("SNAP")) return "Alignment locked. Components are ready to assemble.";
-  if (status.includes("FUSION SUCCESS")) return "Nice! A composed system component has been formed.";
+  if (status.includes("PATTERN BUILT")) return "Nice! A composed system pattern has been formed.";
   if (status.includes("Failed")) return "That design needs another enabling layer before it works.";
   if (status.includes("Incompatible")) return "Those components do not form a known pattern yet.";
   if (status.includes("SAVED")) return "Great work! I've added that to your collection.";
   if (status.includes("SWAPPED")) return "Component selected. What will you pair it with?";
-  return "Observing experiment parameters...";
+  return "Observing system design parameters...";
 }

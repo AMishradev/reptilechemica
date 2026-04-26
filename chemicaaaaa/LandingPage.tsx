@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Stars } from "@react-three/drei/core/Stars.js";
 import * as THREE from "three";
-import WaterSimulation from "./components/WaterSimulation";
-import { TrackingData } from "./types";
 
 // Particle Sphere for Background
 const BackgroundParticleSphere: React.FC = () => {
@@ -234,55 +232,8 @@ const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Mock tracking data for landing page (no hand tracking)
-  const mockTrackingRef = useRef<TrackingData>({
-    left: {
-      pinchDistance: 0.3,
-      isPinching: false,
-      isPointing: false,
-      position: { x: 0.3, y: 0.5, z: 0 },
-      indexPosition: { x: 0.3, y: 0.5, z: 0 },
-      isPresent: false,
-    },
-    right: {
-      pinchDistance: 0.3,
-      isPinching: false,
-      isPointing: false,
-      position: { x: 0.7, y: 0.5, z: 0 },
-      indexPosition: { x: 0.7, y: 0.5, z: 0 },
-      isPresent: false,
-    },
-    isSnapReady: false,
-    isResetGesture: false,
-    isClosedFist: false,
-    isSixtySevenGesture: false,
-    handDistance: 0.4,
-    cameraAspect: 1.77,
-  });
-
   useEffect(() => {
     setIsLoaded(true);
-    // Animate mock hands for visual effect
-    const interval = setInterval(() => {
-      const time = Date.now() * 0.001;
-      mockTrackingRef.current.left.position.x = 0.3 + Math.sin(time) * 0.1;
-      mockTrackingRef.current.left.position.y =
-        0.5 + Math.cos(time * 0.7) * 0.1;
-      mockTrackingRef.current.right.position.x =
-        0.7 + Math.sin(time + Math.PI) * 0.1;
-      mockTrackingRef.current.right.position.y =
-        0.5 + Math.cos(time * 0.7 + Math.PI) * 0.1;
-      mockTrackingRef.current.left.indexPosition =
-        mockTrackingRef.current.left.position;
-      mockTrackingRef.current.right.indexPosition =
-        mockTrackingRef.current.right.position;
-      mockTrackingRef.current.left.pinchDistance =
-        0.3 + Math.sin(time * 2) * 0.1;
-      mockTrackingRef.current.right.pinchDistance =
-        0.3 + Math.sin(time * 2 + Math.PI) * 0.1;
-    }, 16); // ~60fps
-
-    return () => clearInterval(interval);
   }, []);
 
   const handleGetStarted = () => {
@@ -324,32 +275,24 @@ const LandingPage: React.FC = () => {
                 }}
               ></div>
 
-              {/* Water Simulation */}
-              <div className="relative h-48 mb-8 flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-48 h-48 md:w-64 md:h-64">
-                    <Canvas camera={{ position: [0, 0, 3], fov: 50 }}>
-                      <ambientLight intensity={0.5} />
-                      <pointLight
-                        position={[2, 2, 2]}
-                        intensity={1}
-                        color="#00BFFF"
-                      />
-                      <pointLight
-                        position={[-2, -2, 2]}
-                        intensity={0.8}
-                        color="#8B5CF6"
-                      />
-                      <pointLight
-                        position={[0, 2, -2]}
-                        intensity={0.6}
-                        color="#00FFFF"
-                      />
-                      <group scale={0.7}>
-                        <WaterSimulation trackingRef={mockTrackingRef} />
-                      </group>
-                    </Canvas>
-                  </div>
+              {/* System Design Preview */}
+              <div className="relative mb-8 flex h-48 items-center justify-center">
+                <div className="absolute inset-x-8 top-1/2 h-px bg-gradient-to-r from-cyan-300/10 via-cyan-200/60 to-emerald-300/10"></div>
+                <div className="absolute left-12 top-10 h-20 w-px bg-cyan-200/20"></div>
+                <div className="absolute right-12 bottom-10 h-20 w-px bg-emerald-200/20"></div>
+                <div className="relative grid w-full grid-cols-3 items-center gap-4">
+                  {[
+                    { label: "CLIENT", tone: "border-cyan-300/45 bg-cyan-300/10 text-cyan-100" },
+                    { label: "API", tone: "border-violet-300/45 bg-violet-300/10 text-violet-100" },
+                    { label: "DB", tone: "border-emerald-300/45 bg-emerald-300/10 text-emerald-100" },
+                  ].map((node) => (
+                    <div
+                      key={node.label}
+                      className={`mx-auto flex h-20 w-20 items-center justify-center rounded-xl border ${node.tone} font-['IBM_Plex_Mono'] text-sm font-semibold shadow-[0_0_24px_rgba(34,211,238,0.12)] backdrop-blur-md`}
+                    >
+                      {node.label}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -359,15 +302,15 @@ const LandingPage: React.FC = () => {
                   Reptile Chemica
                 </h1>
                 <p className="mt-3 text-sm md:text-base text-gray-400">
-                  A hand-tracked system design lab.
+                  Hand-tracked system design interview prep.
                 </p>
               </div>
 
-              {/* Element Code */}
+              {/* System Prompt */}
               <div className="relative z-10 mb-4">
                 <div className="inline-block px-6 py-3 bg-gray-800/80 rounded-full border border-gray-600/50">
                   <span className="font-['IBM_Plex_Mono'] text-white text-lg md:text-xl">
-                    :: H₂O
+                    :: CLIENT + API + DB
                   </span>
                 </div>
               </div>
@@ -406,14 +349,14 @@ const LandingPage: React.FC = () => {
                     fontFamily: "Space Grotesk, Inter, sans-serif",
                   }}
                 >
-                  Start Experimenting →
+                  Start Interview Prep →
                 </button>
               </div>
 
               {/* Right */}
               <div className="text-right text-sm font-['Inter'] text-gray-400 max-w-sm md:ml-auto">
-                <p>Start experimenting with system components</p>
-                <p>and compose larger architecture patterns.</p>
+                <p>Practice with system components</p>
+                <p>and compose interview-ready architecture patterns.</p>
               </div>
             </div>
 

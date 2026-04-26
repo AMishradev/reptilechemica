@@ -176,9 +176,9 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
       <div className="w-full max-w-6xl flex justify-between items-end mb-8 border-b border-white/20 pb-4">
         <div>
           <h1 className="text-4xl md:text-6xl font-['Space_Grotesk'] font-semibold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-            Reptile Chemica Lab
+            Reptile Chemica Prep
           </h1>
-          <p className="text-sm font-mono text-cyan-200/60 tracking-normal mt-2">Research & synthesis interface</p>
+          <p className="text-sm font-mono text-cyan-200/60 tracking-normal mt-2">System design interview prep workspace</p>
         </div>
         <div className="text-right">
            <div className="text-xs text-gray-400 font-mono mb-1">Discovery Progress</div>
@@ -303,7 +303,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
              {/* Slot Management Panel */}
              <div className="bg-gradient-to-b from-cyan-900/20 to-black/40 border border-cyan-500/30 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                    <div className="text-xs font-mono text-cyan-400 tracking-normal">Lab Slots</div>
+                    <div className="text-xs font-mono text-cyan-400 tracking-normal">Build Slots</div>
                     <div className="text-sm font-bold font-mono text-cyan-300">
                         {selectedSlots.length} / {MAX_SLOTS}
                     </div>
@@ -330,7 +330,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
                 </div>
                 {selectedSlots.length === 0 && (
                     <div className="text-xs text-yellow-400/70 font-mono mt-2 text-center">
-                        Select components to add to lab slots
+                        Select components to add to build slots
                     </div>
                 )}
              </div>
@@ -396,7 +396,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
                     }
                 `}
              >
-                {selectedSlots.length === 0 ? 'SELECT SLOTS TO ENTER' : 'ENTER LABORATORY'}
+                {selectedSlots.length === 0 ? 'SELECT SLOTS TO ENTER' : 'ENTER WORKSPACE'}
              </button>
           </div>
       </div>

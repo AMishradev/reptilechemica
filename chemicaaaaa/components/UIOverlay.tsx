@@ -63,7 +63,7 @@ const DeathScreen: React.FC<{ reason: string }> = ({ reason }) => {
                 </p>
             </div>
             <div className="relative z-10 mt-12 text-sm text-gray-600 animate-pulse">
-                Returning to lab...
+                Returning to prep...
             </div>
             <style>{`
                 @keyframes fadeInDelayed {
@@ -102,6 +102,33 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
   const displayElements = [...labSlots, ...labCreatedSlots];
   const isSpotifyMode = Boolean(spotifyBuild?.active);
   const spotifyPieceCount = spotifyBuild?.builtSymbols.length ?? 0;
+  const statusTone = message.includes("SNAP")
+    ? {
+        border: "border-yellow-300/35",
+        dot: "bg-yellow-300",
+        shadow: "shadow-[0_0_24px_rgba(250,204,21,0.12)]",
+        text: "text-yellow-100",
+      }
+    : message.includes("SUCCESS") || message.includes("SAVED")
+      ? {
+          border: "border-emerald-300/35",
+          dot: "bg-emerald-300",
+          shadow: "shadow-[0_0_24px_rgba(52,211,153,0.12)]",
+          text: "text-emerald-100",
+        }
+      : message.includes("Unstable") || message.includes("Failed") || message.includes("WARNING")
+        ? {
+            border: "border-red-300/35",
+            dot: "bg-red-300",
+            shadow: "shadow-[0_0_24px_rgba(248,113,113,0.12)]",
+            text: "text-red-100",
+          }
+        : {
+            border: "border-cyan-300/30",
+            dot: "bg-cyan-300",
+            shadow: "shadow-[0_0_24px_rgba(34,211,238,0.10)]",
+            text: "text-cyan-100",
+          };
 
   // Helper for font scaling
   const getSymbolScaleClass = (symbol: string, context: 'shelf' | 'system' | 'center') => {
@@ -507,56 +534,42 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                 {combinedElement.name}
               </div>
 	              <div className="mt-4 text-xs font-mono text-cyan-300 animate-pulse">
-	                {isSpotifyMode ? "Piece added to Spotify system" : "Close fist to save element"}
+	                {isSpotifyMode ? "Piece added to Spotify system" : "Close fist to save component"}
 	              </div>
             </div>
           )}
 
-          {/* Futuristic Status Ticker - MOVED UP */}
-          <div className="absolute bottom-44 left-1/2 transform -translate-x-1/2 text-center w-full pointer-events-none">
-            <div className="relative inline-block overflow-hidden rounded-md group">
-              {/* High-Tech Clip Path Border */}
-              <div
-                className={`
-                        relative z-10 px-12 py-5 font-mono tracking-normal text-sm font-semibold bg-black/80 backdrop-blur-xl border-l-4 border-r-4
-                        ${
-                          message.includes("SNAP")
-                            ? "border-yellow-500 text-yellow-400"
-                            : message.includes("SUCCESS") ||
-                                message.includes("SAVED")
-                              ? "border-green-500 text-green-400"
-                              : message.includes("Unstable") ||
-                                  message.includes("Failed") ||
-                                  message.includes("WARNING")
-                                ? "border-red-500 text-red-400"
-                                : "border-cyan-500 text-cyan-400"
-                        }
-                    `}
-                style={{
-                  clipPath:
-                    "polygon(10% 0, 100% 0, 100% 80%, 90% 100%, 0 100%, 0 20%)",
-                }}
-              >
-                <span className="mr-4 opacity-50 text-xs">Status //</span>
-                {message}
-                {/* Scanning Line Animation */}
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-white/5 to-transparent -translate-y-full animate-[scan_2s_linear_infinite]"></div>
-              </div>
-            </div>
-
+          <div
+            className={`absolute ${isSpotifyMode ? "bottom-36" : "bottom-24"} left-1/2 w-[min(92vw,720px)] -translate-x-1/2 text-center pointer-events-none`}
+          >
             {!combinedElement && (
-              <div className="mt-6 flex gap-8 justify-center text-[9px] text-white/40 font-mono tracking-normal">
-                <span className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-cyan-400"></div>Hover Select
+              <div className="mb-3 flex flex-wrap justify-center gap-2 font-mono text-[10px] tracking-normal text-white/55">
+                <span className="flex items-center gap-2 rounded-md border border-white/10 bg-black/35 px-3 py-1.5 backdrop-blur-md">
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-300"></span>
+                  Hover Select
                 </span>
-                <span className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-white"></div>Snap Fuse
+                <span className="flex items-center gap-2 rounded-md border border-white/10 bg-black/35 px-3 py-1.5 backdrop-blur-md">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white"></span>
+                  Snap Link
                 </span>
-                <span className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-red-500"></div>Spin Reset
+                <span className="flex items-center gap-2 rounded-md border border-white/10 bg-black/35 px-3 py-1.5 backdrop-blur-md">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-300"></span>
+                  Spin Reset
                 </span>
               </div>
             )}
+
+            <div
+              className={`mx-auto flex max-w-full items-center justify-center gap-3 rounded-lg border ${statusTone.border} bg-black/75 px-5 py-3 font-mono text-sm font-semibold tracking-normal backdrop-blur-xl ${statusTone.shadow}`}
+            >
+              <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone.dot}`}></span>
+              <span className="shrink-0 text-[10px] uppercase tracking-normal text-white/45">
+                Status
+              </span>
+              <span className={`min-w-0 truncate ${statusTone.text}`}>
+                {message}
+              </span>
+            </div>
           </div>
         </div>
       </div>

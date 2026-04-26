@@ -59,7 +59,7 @@ const getPerformedMascotText = (text: string, mood: MascotMood, message: string)
 };
 
 const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, trackingData, combinedElement, advice }) => {
-  const [mascotText, setMascotText] = useState("Welcome to the design lab. Pick two components.");
+  const [mascotText, setMascotText] = useState("Welcome to system design interview prep. Pick two components.");
   const [isVisible, setIsVisible] = useState(true);
   const [isGeminiLoading, setIsGeminiLoading] = useState(false);
   
@@ -163,7 +163,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
         combinedElement.symbol !== 'BOOM' && 
         combinedElement.symbol !== 'X' &&
         combinedElement.symbol !== lastCombinedElementRef.current &&
-        (message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS'))) {
+        (message.includes('PATTERN BUILT') || message.includes('QUIZ SUCCESS'))) {
       
       // If we have a previous explanation, ensure it was shown for at least 8 seconds
       if (geminiExplanation && explanationStartTime) {
@@ -267,7 +267,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     // Only show system messages if no active Gemini explanation
     if (!geminiExplanation) {
       const nextText = advice ?? getSystemMessage(message);
-      const isIdle = message.includes("LAB READY");
+      const isIdle = message.includes("PREP READY");
       
       const scheduleUpdate = () => {
           const now = Date.now();
