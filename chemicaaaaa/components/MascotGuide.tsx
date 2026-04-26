@@ -110,7 +110,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({
   labCreatedSlots,
   advice,
 }) => {
-  const [mascotText, setMascotText] = useState("Welcome to the design lab. Pick two components.");
+  const [mascotText, setMascotText] = useState("Welcome to the design studio. Pick two components.");
   const [isVisible, setIsVisible] = useState(true);
   const [isGeminiLoading, setIsGeminiLoading] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -121,7 +121,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({
     {
       id: 'intro',
       role: 'assistant',
-      content: 'Reptile Chemica online. Ask me about networking or system design.',
+      content: 'Reptile Systems online. Ask me about networking or system design.',
     },
   ]);
   
@@ -299,7 +299,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({
       lastUpdateRef.current = Date.now();
     } catch (error) {
       console.error('Agentverse mascot chat failed:', error);
-      const fallback = 'I cannot reach the Reptile Chemica brain yet. Check ASI_API_KEY, then restart the dev server.';
+      const fallback = 'I cannot reach the Reptile Systems brain yet. Check ASI_API_KEY, then restart the dev server.';
       setChatMessages(current => [
         ...current,
         {
@@ -523,12 +523,12 @@ const MascotGuide: React.FC<MascotGuideProps> = ({
         <div className="relative z-[310] mb-3 w-[min(22rem,calc(100vw-2rem))] max-h-[min(30rem,calc(100vh-11rem))] pointer-events-auto rounded-2xl border border-cyan-400/35 bg-[#031014] shadow-[0_0_32px_rgba(34,211,238,0.24)] overflow-hidden">
           <div className="flex items-center justify-between border-b border-cyan-400/20 px-4 py-3">
             <div>
-              <div className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100">Reptile Chemica</div>
+              <div className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100">Reptile Systems</div>
               <div className="font-mono text-[10px] text-cyan-200/60">Agentverse brain</div>
             </div>
             <button
               type="button"
-              aria-label="Close Reptile Chemica chat"
+              aria-label="Close Reptile Systems chat"
               onClick={() => setIsChatOpen(false)}
               className="h-8 w-8 rounded-full border border-white/10 bg-white/5 font-mono text-sm text-cyan-100 transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
             >
@@ -567,7 +567,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({
               value={chatInput}
               onChange={event => setChatInput(event.target.value)}
               disabled={isChatLoading}
-              placeholder="Ask about the lab"
+              placeholder="Ask about the architecture"
               className="min-w-0 flex-1 rounded-xl border border-cyan-400/25 bg-black/45 px-3 py-2 font-mono text-xs text-cyan-50 placeholder:text-cyan-100/35 outline-none transition-colors focus:border-cyan-300"
             />
             <button
@@ -601,7 +601,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({
            {/* Container */}
            <button
              type="button"
-             aria-label={isChatOpen ? 'Close Reptile Chemica chat' : 'Open Reptile Chemica chat'}
+             aria-label={isChatOpen ? 'Close Reptile Systems chat' : 'Open Reptile Systems chat'}
              onClick={() => setIsChatOpen(current => !current)}
              className="w-full h-full relative z-10 pointer-events-auto cursor-pointer rounded-full bg-transparent p-0 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
            >
