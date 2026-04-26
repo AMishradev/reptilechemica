@@ -17,6 +17,12 @@ const readRequestBody = (req: import('http').IncomingMessage) =>
     req.on('error', reject);
   });
 
+const sendJson = (res: import('http').ServerResponse, statusCode: number, payload: unknown) => {
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(payload));
+};
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     // Support both GEMINI_API_KEY and VITE_GEMINI_API_KEY
@@ -37,16 +43,12 @@ export default defineConfig(({ mode }) => {
           configureServer(server) {
             server.middlewares.use('/api/mascot-speech', async (req, res) => {
               if (req.method !== 'POST') {
-                res.statusCode = 405;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: 'Method not allowed' }));
+                sendJson(res, 405, { error: 'Method not allowed' });
                 return;
               }
 
               if (!elevenLabsKey) {
-                res.statusCode = 503;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: 'ELEVENLABS_API_KEY is not configured' }));
+                sendJson(res, 503, { error: 'ELEVENLABS_API_KEY is not configured' });
                 return;
               }
 
@@ -55,9 +57,7 @@ export default defineConfig(({ mode }) => {
                 const text = body.text?.trim().slice(0, 360);
 
                 if (!text) {
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ error: 'Missing text' }));
+                  sendJson(res, 400, { error: 'Missing text' });
                   return;
                 }
 
@@ -83,9 +83,7 @@ export default defineConfig(({ mode }) => {
                 );
 
                 if (!speechResponse.ok) {
-                  res.statusCode = speechResponse.status;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ error: 'ElevenLabs speech request failed' }));
+                  sendJson(res, speechResponse.status, { error: 'ElevenLabs speech request failed' });
                   return;
                 }
 
@@ -96,9 +94,7 @@ export default defineConfig(({ mode }) => {
                 res.end(audioBuffer);
               } catch (error) {
                 console.error('Mascot speech proxy error:', error);
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: 'Mascot speech proxy failed' }));
+                sendJson(res, 500, { error: 'Mascot speech proxy failed' });
               }
             });
           },
