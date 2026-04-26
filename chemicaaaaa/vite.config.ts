@@ -2,6 +2,8 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
+import { createAsiLabReply, type LabChatMessage } from './utils/asiLabChat';
+
 const readRequestBody = (req: import('http').IncomingMessage, maxLength = 10_000) =>
   new Promise<string>((resolve, reject) => {
     let body = '';
@@ -22,9 +24,6 @@ const sendJson = (res: import('http').ServerResponse, statusCode: number, payloa
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(payload));
 };
-
-const atomisSystemPrompt =
-  'You are Atomis, the Reptile Chemica lab guide. You only answer questions about the Reptile Chemica system-design lab, computer networking, distributed systems, cloud architecture, and system design. Keep answers under 90 words, friendly, direct, and plain text with no emoji, markdown, bullets, or bold markers. In this lab, valid fusions include APP + CACHE = FAST / Cached Service, APP + DB = CRUD, APP + QUEUE = ASYNC, LB + APP = POOL, API + APP = SVC, API + LB = ROUTE, DB + CACHE = READ, QUEUE + DB = JOBDB, CLIENT + DNS = EDGE, CDN + OBJ = MEDIA, CDN + API = BFF, CLIENT + CDN = STATIC, FAST + ASYNC = SCALE. If a user says APP and CACHE cannot combine, explain that they can: select the APP and CACHE lab components exactly, then perform the snap/fusion gesture.';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -126,7 +125,7 @@ export default defineConfig(({ mode }) => {
                 const sourceMessages = Array.isArray(body.messages)
                   ? body.messages
                   : [{ role: 'user', content: body.text }];
-                const messages = sourceMessages
+                const messages: LabChatMessage[] = sourceMessages
                   .filter(item => item.role === 'user' || item.role === 'assistant')
                   .map(item => ({
                     role: item.role as 'user' | 'assistant',
@@ -140,40 +139,13 @@ export default defineConfig(({ mode }) => {
                   return;
                 }
 
-                const asiResponse = await fetch('https://api.asi1.ai/v1/chat/completions', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${asiKey}`,
-                  },
-                  body: JSON.stringify({
-                    model: asiModel,
-                    messages: [
-                      { role: 'system', content: atomisSystemPrompt },
-                      ...messages,
-                    ],
-                    max_tokens: 220,
-                    temperature: 0.35,
-                  }),
-                });
-                const payload = await asiResponse.json().catch(() => null) as {
-                  choices?: Array<{ message?: { content?: string } }>;
-                  error?: { message?: string };
-                } | null;
+                const { reply, toolUsed, toolResult } = await createAsiLabReply(
+                  asiKey,
+                  asiModel,
+                  messages
+                );
 
-                if (!asiResponse.ok) {
-                  console.error('ASI:One chat proxy error:', payload?.error?.message ?? asiResponse.statusText);
-                  sendJson(res, asiResponse.status, { error: 'ASI:One chat request failed' });
-                  return;
-                }
-
-                const reply = payload?.choices?.[0]?.message?.content?.trim();
-                if (!reply) {
-                  sendJson(res, 502, { error: 'ASI:One returned an empty response' });
-                  return;
-                }
-
-                sendJson(res, 200, { reply });
+                sendJson(res, 200, { reply, toolUsed, toolResult });
               } catch (error) {
                 console.error('Agentverse chat proxy error:', error);
                 sendJson(res, 500, { error: 'Agentverse chat proxy failed' });

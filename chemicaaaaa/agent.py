@@ -2,6 +2,7 @@ from datetime import datetime
 from types import MethodType
 from uuid import uuid4
 import asyncio
+import json
 import os
 
 import aiohttp
@@ -25,14 +26,304 @@ SYSTEM_PROMPT = (
     "about the Reptile Chemica system-design lab, computer networking, "
     "distributed systems, cloud architecture, and system design. Keep answers "
     "under 90 words, friendly, direct, and plain text with no emoji, markdown, "
-    "bullets, or bold markers. In this lab, valid fusions include APP + CACHE = "
-    "FAST / Cached Service, APP + DB = CRUD, APP + QUEUE = ASYNC, LB + APP = "
-    "POOL, API + APP = SVC, API + LB = ROUTE, DB + CACHE = READ, QUEUE + DB = "
-    "JOBDB, CLIENT + DNS = EDGE, CDN + OBJ = MEDIA, CDN + API = BFF, "
-    "CLIENT + CDN = STATIC, FAST + ASYNC = SCALE. If a user says APP and CACHE "
-    "cannot combine, explain that they can: select the APP and CACHE lab "
-    "components exactly, then perform the snap/fusion gesture."
+    "bullets, or bold markers. Use the lookup_combination tool whenever the "
+    "user asks whether lab components combine, what a fusion creates, or how "
+    "two components relate in the lab. After the tool returns, explain the "
+    "exact fusion result and the next lab action. If APP and CACHE seem stuck, "
+    "tell the user to select the APP and CACHE lab components exactly, then "
+    "perform the snap/fusion gesture."
 )
+
+COMBINATIONS = {
+    tuple(sorted(("CLIENT", "DNS"))): {
+        "resultSymbol": "EDGE",
+        "resultName": "Edge Entry",
+        "description": "A user request that can resolve a service endpoint and enter the platform.",
+    },
+    tuple(sorted(("CDN", "OBJ"))): {
+        "resultSymbol": "MEDIA",
+        "resultName": "Media Delivery",
+        "description": "A static asset path optimized for cacheable, low-latency delivery.",
+    },
+    tuple(sorted(("APP", "LB"))): {
+        "resultSymbol": "POOL",
+        "resultName": "Service Pool",
+        "description": "A horizontally scaled set of application servers behind traffic balancing.",
+    },
+    tuple(sorted(("API", "APP"))): {
+        "resultSymbol": "SVC",
+        "resultName": "Backend Service",
+        "description": "A routed service boundary that exposes business capabilities through an API.",
+    },
+    tuple(sorted(("APP", "DB"))): {
+        "resultSymbol": "CRUD",
+        "resultName": "Transactional Service",
+        "description": "A service that reads and writes durable application data.",
+    },
+    tuple(sorted(("APP", "CACHE"))): {
+        "resultSymbol": "FAST",
+        "resultName": "Cached Service",
+        "description": "A low-latency service path backed by cached reads.",
+    },
+    tuple(sorted(("APP", "QUEUE"))): {
+        "resultSymbol": "ASYNC",
+        "resultName": "Async Worker Flow",
+        "description": "A resilient background-processing path for jobs outside the request cycle.",
+    },
+    tuple(sorted(("API", "LB"))): {
+        "resultSymbol": "ROUTE",
+        "resultName": "Routed Traffic",
+        "description": "Ingress traffic routed to healthy service capacity.",
+    },
+    tuple(sorted(("CACHE", "DB"))): {
+        "resultSymbol": "READ",
+        "resultName": "Read Path",
+        "description": "A data access pattern that can serve hot reads from cache and fall back to storage.",
+    },
+    tuple(sorted(("DB", "QUEUE"))): {
+        "resultSymbol": "JOBDB",
+        "resultName": "Job Persistence",
+        "description": "Queued work with durable progress, retry, and result tracking.",
+    },
+    tuple(sorted(("API", "CDN"))): {
+        "resultSymbol": "BFF",
+        "resultName": "Frontend Gateway",
+        "description": "A user-facing gateway that can mix cached assets with dynamic API calls.",
+    },
+    tuple(sorted(("CDN", "CLIENT"))): {
+        "resultSymbol": "STATIC",
+        "resultName": "Static Frontend",
+        "description": "A frontend delivery path served close to users through edge caching.",
+    },
+    tuple(sorted(("EDGE", "ROUTE"))): {
+        "resultSymbol": "WEBAPP",
+        "resultName": "Web Application",
+        "description": "A complete entry path from user request through edge routing into backend capacity.",
+    },
+    tuple(sorted(("CRUD", "SVC"))): {
+        "resultSymbol": "APIAPP",
+        "resultName": "API Application",
+        "description": "A backend application that exposes APIs and persists transactional data.",
+    },
+    tuple(sorted(("ASYNC", "FAST"))): {
+        "resultSymbol": "SCALE",
+        "resultName": "Scalable Service",
+        "description": "A service that combines low-latency reads with asynchronous background processing.",
+    },
+    tuple(sorted(("MEDIA", "STATIC"))): {
+        "resultSymbol": "CONTENT",
+        "resultName": "Content Platform",
+        "description": "A system for serving frontend assets and user media through durable storage and edge delivery.",
+    },
+    tuple(sorted(("CRUD", "READ"))): {
+        "resultSymbol": "DATA",
+        "resultName": "Data Platform",
+        "description": "A data layer that supports durable writes and optimized read access.",
+    },
+    tuple(sorted(("ASYNC", "JOBDB"))): {
+        "resultSymbol": "WORKER",
+        "resultName": "Worker Platform",
+        "description": "A background processing system with queued work, durable state, and retryable execution.",
+    },
+}
+
+ALIASES = {
+    "APPLICATION": "APP",
+    "APPSERVER": "APP",
+    "APPP": "APP",
+    "SERVER": "APP",
+    "DATABASE": "DB",
+    "DBMS": "DB",
+    "CACHING": "CACHE",
+    "LOADBALANCER": "LB",
+    "BALANCER": "LB",
+    "APIGATEWAY": "API",
+    "GATEWAY": "API",
+    "OBJECTSTORE": "OBJ",
+    "OBJECTSTORAGE": "OBJ",
+}
+
+LOOKUP_COMBINATION_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "lookup_combination",
+        "description": "Look up the Reptile Chemica lab fusion result for two component symbols or names.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "element_a": {
+                    "type": "string",
+                    "description": "The first lab component, such as APP, CACHE, DB, LB, API, EDGE, or ROUTE.",
+                },
+                "element_b": {
+                    "type": "string",
+                    "description": "The second lab component, such as APP, CACHE, DB, LB, API, EDGE, or ROUTE.",
+                },
+            },
+            "required": ["element_a", "element_b"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+def normalize_element_symbol(value: str) -> str:
+    compact = "".join(ch for ch in value.upper() if ch.isalnum())
+    if compact in ALIASES:
+        return ALIASES[compact]
+    if compact.startswith("APP"):
+        return "APP"
+    if compact.startswith("CACHE"):
+        return "CACHE"
+    return compact
+
+
+def lookup_combination(element_a: str, element_b: str) -> dict:
+    normalized_a = normalize_element_symbol(element_a)
+    normalized_b = normalize_element_symbol(element_b)
+    result = COMBINATIONS.get(tuple(sorted((normalized_a, normalized_b))))
+
+    if result is None:
+        return {
+            "found": False,
+            "elementA": normalized_a,
+            "elementB": normalized_b,
+            "guidance": (
+                f"No known Reptile Chemica fusion exists for {normalized_a} + "
+                f"{normalized_b}. Try selecting a valid pair from the lab shelf, "
+                "then use the snap/fusion gesture."
+            ),
+        }
+
+    return {
+        "found": True,
+        "elementA": normalized_a,
+        "elementB": normalized_b,
+        **result,
+        "guidance": (
+            f"{normalized_a} + {normalized_b} combines into "
+            f"{result['resultSymbol']} / {result['resultName']}. Select those "
+            "two lab components exactly, then perform the snap/fusion gesture."
+        ),
+    }
+
+
+def should_use_combination_tool(text: str) -> bool:
+    normalized = text.lower()
+    mentions_fusion_action = any(
+        token in normalized
+        for token in ("combine", "fusion", "fuse", "mix", "pair", "merge", "snap", "+")
+    )
+    component_patterns = (
+        ("app", "application", "appserver"),
+        ("cache", "caching"),
+        ("db", "database"),
+        ("lb", "load balancer", "balancer"),
+        ("api", "gateway"),
+        ("queue",),
+        ("cdn",),
+        ("dns",),
+        ("client",),
+        ("obj", "object stor"),
+        ("edge",),
+        ("route",),
+        ("fast",),
+        ("async",),
+        ("crud",),
+        ("read",),
+        ("svc",),
+        ("media",),
+        ("static",),
+        ("jobdb",),
+    )
+    component_mentions = sum(
+        1
+        for pattern_group in component_patterns
+        if any(pattern in normalized for pattern in pattern_group)
+    )
+    asks_about_two_components = component_mentions >= 2 and any(
+        token in normalized
+        for token in (
+            "add",
+            "with",
+            "between",
+            "relate",
+            "layer",
+            "stuck",
+            "wrong",
+            "can't",
+            "cant",
+            "cannot",
+            "doesn't",
+            "dont",
+            "do not",
+            "won't",
+            "into",
+        )
+    )
+    return mentions_fusion_action or asks_about_two_components
+
+
+def create_asi_response(text: str) -> str:
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": text},
+    ]
+    request = {
+        "model": os.getenv("ASI_MODEL", "asi1-mini"),
+        "messages": messages,
+        "max_tokens": 220,
+        "temperature": 0.35,
+    }
+
+    if should_use_combination_tool(text):
+        request["tools"] = [LOOKUP_COMBINATION_TOOL]
+        request["tool_choice"] = {
+            "type": "function",
+            "function": {"name": "lookup_combination"},
+        }
+
+    result = client.chat.completions.create(**request)
+    message = result.choices[0].message
+    tool_calls = getattr(message, "tool_calls", None) or []
+    tool_call = next(
+        (
+            call
+            for call in tool_calls
+            if getattr(getattr(call, "function", None), "name", None) == "lookup_combination"
+        ),
+        None,
+    )
+
+    if tool_call is None:
+        return str(message.content or "")
+
+    try:
+        args = json.loads(tool_call.function.arguments or "{}")
+    except json.JSONDecodeError:
+        args = {}
+
+    tool_result = lookup_combination(
+        str(args.get("element_a", "")),
+        str(args.get("element_b", "")),
+    )
+    messages.extend(
+        [
+            message.model_dump(exclude_none=True),
+            {
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": json.dumps(tool_result),
+            },
+        ]
+    )
+    final = client.chat.completions.create(
+        model=os.getenv("ASI_MODEL", "asi1-mini"),
+        messages=messages,
+        max_tokens=220,
+        temperature=0.35,
+    )
+    return str(final.choices[0].message.content or "")
 
 client = OpenAI(
     base_url="https://api.asi1.ai/v1",
@@ -127,15 +418,7 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
         response = "Ask me a networking or system design question and I will help."
     else:
         try:
-            result = client.chat.completions.create(
-                model=os.getenv("ASI_MODEL", "asi1-mini"),
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": text},
-                ],
-                max_tokens=220,
-            )
-            response = str(result.choices[0].message.content)
+            response = create_asi_response(text)
         except Exception as error:
             ctx.logger.error(f"ASI:One call failed: {error}")
 
