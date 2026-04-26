@@ -53,7 +53,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
       isDetected: false,
       isPresent: false
     },
-    isClapping: false,
+    isSnapReady: false,
     isResetGesture: false,
     isClosedFist: false,
     isSixtySevenGesture: false,

@@ -451,7 +451,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                 className={`
                         relative z-10 px-12 py-5 font-mono tracking-widest uppercase text-sm font-bold bg-black/80 backdrop-blur-xl border-l-4 border-r-4
                         ${
-                          message.includes("HOLD")
+                          message.includes("SNAP")
                             ? "border-yellow-500 text-yellow-400"
                             : message.includes("SUCCESS") ||
                                 message.includes("SAVED")
@@ -481,7 +481,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                   <div className="w-1 h-1 bg-cyan-400"></div>Hover Select
                 </span>
                 <span className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-white"></div>Clap Fuse
+                  <div className="w-1 h-1 bg-white"></div>Snap Fuse
                 </span>
                 <span className="flex items-center gap-2">
                   <div className="w-1 h-1 bg-red-500"></div>Spin Reset

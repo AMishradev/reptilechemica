@@ -29,7 +29,7 @@ const createIdleTrackingData = (cameraAspect = 1.77): TrackingData => ({
     isDetected: false,
     isPresent: false,
   },
-  isClapping: false,
+  isSnapReady: false,
   isResetGesture: false,
   isClosedFist: false,
   isSixtySevenGesture: false,
@@ -230,8 +230,7 @@ const App: React.FC = () => {
   const lastLeftHoverRef = useRef<string | null>(null);
   const lastRightHoverRef = useRef<string | null>(null);
 
-  const clapStartRef = useRef<number>(0);
-  const CLAP_DURATION_THRESHOLD = 800; 
+  const snapFuseArmedRef = useRef(true);
 
   const handleCameraReady = useCallback(() => {
     setIsCameraReady(true);
@@ -243,7 +242,7 @@ const App: React.FC = () => {
     trackingDataRef.current = createIdleTrackingData(trackingDataRef.current.cameraAspect);
     lastLeftHoverRef.current = null;
     lastRightHoverRef.current = null;
-    clapStartRef.current = 0;
+    snapFuseArmedRef.current = true;
   }, [isDashboardOpen]);
 
   const checkCombination = useCallback(() => {
@@ -476,7 +475,6 @@ const App: React.FC = () => {
     }
     
     trackingDataRef.current = data;
-    const now = Date.now();
     
     // Handle 67 gesture detection - Easter egg: unlock Holmium
     // COMMENTED OUT - Disabled gesture detection
@@ -527,10 +525,12 @@ const App: React.FC = () => {
             }
             setCombinedElement(null);
             fusionErrorRef.current = false;
+            snapFuseArmedRef.current = false;
         } else if (data.isResetGesture) {
             if (fusionErrorRef.current || combinedElement) {
                 setCombinedElement(null);
                 fusionErrorRef.current = false;
+                snapFuseArmedRef.current = true;
                 if (quizMode.active && quizMode.targetName) {
                     setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
                 } else {
@@ -542,8 +542,9 @@ const App: React.FC = () => {
     }
 
     if (fusionErrorRef.current) {
-        if (!data.isClapping && data.handDistance > 0.25) {
+        if (!data.isSnapReady && data.handDistance > 0.25) {
             fusionErrorRef.current = false;
+            snapFuseArmedRef.current = true;
             if (quizMode.active && quizMode.targetName) {
                 setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
             } else {
@@ -585,32 +586,16 @@ const App: React.FC = () => {
         }
     }
 
-    if (!combinedElement && data.isClapping && !fusionErrorRef.current) {
-        if (clapStartRef.current === 0) {
-            clapStartRef.current = now;
-        }
-        
-        const duration = now - clapStartRef.current;
-        if (duration > CLAP_DURATION_THRESHOLD) {
-            checkCombination();
-            clapStartRef.current = 0; 
-        } else {
-             if (!message.includes("WARNING") && !message.includes("QUIZ:")) {
-                if (message !== "HOLD TO FUSE...") setMessage("HOLD TO FUSE...");
-             }
-        }
-    } else {
-        clapStartRef.current = 0;
-        if (message === "HOLD TO FUSE...") {
-            if (quizMode.active && quizMode.targetName) {
-                setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
-            } else {
-                setMessage("LAB READY");
-            }
-        }
+    if (!combinedElement && data.isSnapReady && !fusionErrorRef.current && snapFuseArmedRef.current) {
+        snapFuseArmedRef.current = false;
+        checkCombination();
     }
 
-  }, [combinedElement, message, checkCombination, handleInteraction, isDashboardOpen, quizMode]);
+    if (!data.isSnapReady) {
+        snapFuseArmedRef.current = true;
+    }
+
+  }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode]);
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden select-none">

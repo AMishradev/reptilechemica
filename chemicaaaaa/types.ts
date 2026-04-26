@@ -30,7 +30,7 @@ export type GameState = 'playing' | 'dead';
 export interface TrackingData {
   left: HandGestureState;
   right: HandGestureState;
-  isClapping: boolean;
+  isSnapReady: boolean; // Hands/components are close enough to snap-fuse
   isResetGesture: boolean; // Circular motion detected
   isClosedFist: boolean; // New gesture for saving
   isSixtySevenGesture: boolean; // Palms up + alternating motion detected

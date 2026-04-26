@@ -106,7 +106,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
       const trackingData: TrackingData = {
         left: { pinchDistance: 0.0, isPinching: false, isPointing: false, position: {x: 0.15, y: 0.5, z: 0}, indexPosition: {x: 0.15, y: 0.5, z: 0}, isPresent: false },
         right: { pinchDistance: 0.0, isPinching: false, isPointing: false, position: {x: 0.85, y: 0.5, z: 0}, indexPosition: {x: 0.85, y: 0.5, z: 0}, isPresent: false },
-        isClapping: false,
+        isSnapReady: false,
         isResetGesture: false,
         isClosedFist: false,
         isSixtySevenGesture: false,
@@ -189,14 +189,14 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
         
         trackingData.isClosedFist = detectedFist;
 
-        // Clap Detection
+        // Snap proximity detection for instant fusion when both tracked hands meet.
         if (result.landmarks.length === 2) {
           const dx = trackingData.left.position.x - trackingData.right.position.x;
           const dy = trackingData.left.position.y - trackingData.right.position.y;
           const dist = Math.sqrt(dx*dx + dy*dy);
           trackingData.handDistance = dist;
           
-          if (dist < 0.12) trackingData.isClapping = true;
+          if (dist < 0.12) trackingData.isSnapReady = true;
           
           // 67 Gesture Detection: DISABLED
           // Both palms up + alternating up/down motion detection has been commented out

@@ -252,7 +252,7 @@ const LandingPage: React.FC = () => {
       indexPosition: { x: 0.7, y: 0.5, z: 0 },
       isPresent: false,
     },
-    isClapping: false,
+    isSnapReady: false,
     isResetGesture: false,
     isClosedFist: false,
     isSixtySevenGesture: false,
