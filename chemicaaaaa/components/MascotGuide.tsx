@@ -4,6 +4,7 @@ import { getSystemMessage } from '../utils/mascot';
 import { getElementExplanation } from '../utils/gemini';
 import { askAgentverseBrain, type AgentverseChatMessage } from '../utils/agentverseChat';
 import { buildLabVisionState, captureLabScreenshot } from '../utils/labVisionCapture';
+import { lookupCombination } from '../utils/labCombinationTool';
 import { TrackingData, ElementData } from '../types';
 
 interface MascotGuideProps {
@@ -91,6 +92,35 @@ const cleanChatText = (text: string) =>
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+
+const createLocalBrainFallback = (prompt: string, labState: ReturnType<typeof buildLabVisionState>) => {
+  const left = labState.leftElement;
+  const right = labState.rightElement;
+  const combined = labState.combinedElement;
+  const normalizedPrompt = prompt.toLowerCase();
+
+  if (normalizedPrompt.match(/\b(see|holding|selected|screen|look)\b/)) {
+    const pair = left && right ? lookupCombination(left.symbol, right.symbol) : null;
+    const pairLine = pair?.found
+      ? `${left?.symbol} + ${right?.symbol} can fuse into ${pair.resultSymbol} (${pair.resultName}).`
+      : left && right
+        ? `${left.symbol} + ${right.symbol} does not have a stable fusion yet.`
+        : 'Pick two components and I can reason about them.';
+
+    return `I can see the local lab state: left hand has ${left?.symbol ?? 'nothing'} (${left?.name ?? 'none'}), right hand has ${right?.symbol ?? 'nothing'} (${right?.name ?? 'none'}). ${combined ? `Current result is ${combined.symbol} (${combined.name}). ` : ''}${pairLine}`;
+  }
+
+  if (left && right) {
+    const pair = lookupCombination(left.symbol, right.symbol);
+    if (pair.found) {
+      return `${left.symbol} + ${right.symbol} makes ${pair.resultSymbol} (${pair.resultName}). ${pair.description}`;
+    }
+
+    return `${left.symbol} and ${right.symbol} are selected, but that pair is not a known stable fusion. Try a bridge like API, APP, LB, CACHE, or QUEUE.`;
+  }
+
+  return 'I can still help locally: pick two system components, then ask whether they combine or what architecture shape they represent.';
+};
 
 interface MascotChatEntry extends AgentverseChatMessage {
   id: string;
@@ -269,15 +299,16 @@ const MascotGuide: React.FC<MascotGuideProps> = ({
     setMascotText('Thinking through the system shape...');
     lastUpdateRef.current = Date.now();
 
+    const labState = buildLabVisionState({
+      status: message,
+      leftElement,
+      rightElement,
+      combinedElement,
+      shelf: [...labSlots, ...labCreatedSlots],
+      dashboardOpen: isDashboardOpen,
+    });
+
     try {
-      const labState = buildLabVisionState({
-        status: message,
-        leftElement,
-        rightElement,
-        combinedElement,
-        shelf: [...labSlots, ...labCreatedSlots],
-        dashboardOpen: isDashboardOpen,
-      });
       const screenshotDataUrl = await captureLabScreenshot().catch(error => {
         console.warn('Lab vision capture failed:', error);
         return undefined;
@@ -299,7 +330,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({
       lastUpdateRef.current = Date.now();
     } catch (error) {
       console.error('Agentverse mascot chat failed:', error);
-      const fallback = 'I cannot reach the Reptile Systems brain yet. Check ASI_API_KEY, then restart the dev server.';
+      const fallback = createLocalBrainFallback(content, labState);
       setChatMessages(current => [
         ...current,
         {

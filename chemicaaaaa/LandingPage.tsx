@@ -5,6 +5,9 @@ import { Stars } from "@react-three/drei/core/Stars.js";
 import * as THREE from "three";
 import { copyText, createRoomCode, getRoomPath, getShareUrl, normalizeRoomCode } from "./utils/multiplayer";
 
+const HERO_TITLE = "Design systems in thin air.";
+const HERO_TYPING_DURATION_MS = 3000;
+
 // Particle Sphere for Background
 const BackgroundParticleSphere: React.FC = () => {
   const meshRef = useRef<THREE.Points>(null);
@@ -17,7 +20,7 @@ const BackgroundParticleSphere: React.FC = () => {
       uScale: { value: 0.3 },
       uTurbulence: { value: 0.2 },
       uColor: { value: new THREE.Color("#00BFFF") },
-      uOpacity: { value: 0.3 },
+      uOpacity: { value: 0.18 },
     }),
     []
   );
@@ -213,12 +216,12 @@ const StarryBackground: React.FC = () => {
     <Canvas camera={{ position: [0, 0, 5], fov: 60 }}>
       <color attach="background" args={["#000000"]} />
       <ambientLight intensity={0.1} />
-      <pointLight position={[0, 0, 5]} intensity={0.5} color="#00BFFF" />
+      <pointLight position={[0, 0, 5]} intensity={0.32} color="#00BFFF" />
       <Stars
         radius={300}
         depth={60}
-        count={8000}
-        factor={7}
+        count={5200}
+        factor={5}
         saturation={0}
         fade
         speed={1}
@@ -229,20 +232,20 @@ const StarryBackground: React.FC = () => {
 };
 
 const architectureNodes = [
-  { label: "CLIENT", name: "User entry", top: "15%", left: "8%", color: "#38BDF8" },
-  { label: "CDN", name: "Edge cache", top: "34%", left: "24%", color: "#22D3EE" },
-  { label: "API", name: "Gateway", top: "16%", left: "47%", color: "#F472B6" },
-  { label: "APP", name: "Service", top: "45%", left: "58%", color: "#FACC15" },
-  { label: "CACHE", name: "Fast reads", top: "69%", left: "38%", color: "#4ADE80" },
-  { label: "DB", name: "Source of truth", top: "69%", left: "72%", color: "#FB923C" },
+  { label: "CLIENT", name: "User entry", top: "14%", left: "5%", color: "#38BDF8" },
+  { label: "CDN", name: "Edge cache", top: "35%", left: "22%", color: "#22D3EE" },
+  { label: "API", name: "Gateway", top: "15%", left: "52%", color: "#F472B6" },
+  { label: "APP", name: "Service", top: "46%", left: "62%", color: "#FACC15" },
+  { label: "CACHE", name: "Fast reads", top: "70%", left: "34%", color: "#4ADE80" },
+  { label: "DB", name: "Source of truth", top: "69%", left: "70%", color: "#FB923C" },
 ];
 
 const architectureLinks = [
-  { top: "26%", left: "17%", width: "16%", rotate: "25deg", color: "#38BDF8" },
-  { top: "31%", left: "36%", width: "17%", rotate: "-17deg", color: "#22D3EE" },
-  { top: "31%", left: "53%", width: "17%", rotate: "53deg", color: "#F472B6" },
-  { top: "61%", left: "48%", width: "15%", rotate: "132deg", color: "#4ADE80" },
-  { top: "61%", left: "62%", width: "17%", rotate: "37deg", color: "#FB923C" },
+  { top: "26%", left: "16%", width: "16%", rotate: "24deg", color: "#38BDF8" },
+  { top: "32%", left: "35%", width: "18%", rotate: "-17deg", color: "#22D3EE" },
+  { top: "31%", left: "54%", width: "15%", rotate: "53deg", color: "#F472B6" },
+  { top: "62%", left: "47%", width: "16%", rotate: "134deg", color: "#4ADE80" },
+  { top: "61%", left: "62%", width: "15%", rotate: "35deg", color: "#FB923C" },
 ];
 
 const SystemArchitecturePreview: React.FC = () => (
@@ -260,7 +263,7 @@ const SystemArchitecturePreview: React.FC = () => (
       }}
     />
 
-    <div className="absolute right-[-8%] top-[12%] h-[66vh] w-[min(76vw,840px)] max-w-[900px]">
+    <div className="absolute right-[1%] top-[14%] h-[64vh] w-[min(50vw,690px)] max-w-[720px] opacity-70">
       {architectureLinks.map((link, index) => (
         <div
           key={`${link.left}-${index}`}
@@ -277,7 +280,7 @@ const SystemArchitecturePreview: React.FC = () => (
       ))}
 
       <div className="absolute left-[48%] top-[42%] -translate-x-1/2 -translate-y-1/2">
-        <div className="relative grid h-28 w-28 place-items-center border border-cyan-300/70 bg-black/45 backdrop-blur-sm shadow-[0_0_36px_rgba(34,211,238,0.32)]">
+        <div className="relative grid h-24 w-24 place-items-center border border-cyan-300/50 bg-black/35 backdrop-blur-sm shadow-[0_0_26px_rgba(34,211,238,0.22)]">
           <div className="absolute inset-2 border border-white/10" />
           <div className="text-center">
             <div className="font-['Space_Grotesk'] text-xl font-semibold text-white">
@@ -291,7 +294,7 @@ const SystemArchitecturePreview: React.FC = () => (
       {architectureNodes.map((node) => (
         <div
           key={node.label}
-          className="absolute w-28 border border-white/12 bg-black/55 px-3 py-2 backdrop-blur-md shadow-[0_0_24px_rgba(0,0,0,0.35)]"
+          className="absolute w-[6.75rem] border border-white/10 bg-black/42 px-3 py-2 backdrop-blur-md shadow-[0_0_18px_rgba(0,0,0,0.28)]"
           style={{
             top: node.top,
             left: node.left,
@@ -299,7 +302,7 @@ const SystemArchitecturePreview: React.FC = () => (
           }}
         >
           <div
-            className="font-['Space_Grotesk'] text-lg font-semibold"
+            className="font-['Space_Grotesk'] text-base font-semibold"
             style={{ color: node.color }}
           >
             {node.label}
@@ -312,6 +315,50 @@ const SystemArchitecturePreview: React.FC = () => (
     </div>
   </div>
 );
+
+const TypingHeroTitle: React.FC = () => {
+  const [visibleLength, setVisibleLength] = useState(0);
+  const [direction, setDirection] = useState<"typing" | "deleting">("typing");
+
+  useEffect(() => {
+    const stepMs = HERO_TYPING_DURATION_MS / HERO_TITLE.length;
+
+    if (direction === "typing" && visibleLength === HERO_TITLE.length) {
+      const timeout = window.setTimeout(() => setDirection("deleting"), 220);
+      return () => window.clearTimeout(timeout);
+    }
+
+    if (direction === "deleting" && visibleLength === 0) {
+      const timeout = window.setTimeout(() => setDirection("typing"), 180);
+      return () => window.clearTimeout(timeout);
+    }
+
+    const timeout = window.setTimeout(() => {
+      setVisibleLength((current) =>
+        direction === "typing"
+          ? Math.min(HERO_TITLE.length, current + 1)
+          : Math.max(0, current - 1)
+      );
+    }, stepMs);
+
+    return () => window.clearTimeout(timeout);
+  }, [direction, visibleLength]);
+
+  const visibleText = HERO_TITLE.slice(0, visibleLength);
+
+  return (
+    <h1
+      aria-label={HERO_TITLE}
+      className="relative font-['Space_Grotesk'] text-[3.25rem] font-semibold leading-[0.93] text-white/90 sm:text-[4.75rem] lg:text-[6.6rem]"
+    >
+      <span className="invisible block">{HERO_TITLE}</span>
+      <span aria-hidden="true" className="absolute inset-0 block">
+        {visibleText}
+        <span className="ml-1 inline-block h-[0.82em] w-[0.07em] translate-y-[0.08em] bg-cyan-100/80 shadow-[0_0_10px_rgba(103,232,249,0.45)]" />
+      </span>
+    </h1>
+  );
+};
 
 // Main Landing Page Component
 const LandingPage: React.FC = () => {
@@ -354,11 +401,11 @@ const LandingPage: React.FC = () => {
         <StarryBackground />
       </div>
       <SystemArchitecturePreview />
-      <div className="absolute inset-0 z-[1] bg-[linear-gradient(90deg,rgba(0,0,0,0.96)_0%,rgba(0,0,0,0.72)_43%,rgba(0,0,0,0.22)_100%)]" />
+      <div className="absolute inset-0 z-[1] bg-[radial-gradient(circle_at_58%_50%,rgba(34,211,238,0.09),transparent_25%),linear-gradient(90deg,rgba(0,0,0,0.97)_0%,rgba(0,0,0,0.8)_39%,rgba(0,0,0,0.44)_68%,rgba(0,0,0,0.24)_100%)]" />
       <div className="absolute inset-x-0 bottom-0 z-[1] h-48 bg-gradient-to-t from-black to-transparent" />
 
       {/* Main Content */}
-      <div className="relative z-10 flex min-h-screen flex-col px-5 md:px-10">
+      <div className="relative z-10 flex min-h-screen flex-col px-5 md:px-8 lg:px-10">
         <header className="flex items-center justify-between py-5">
           <div className="flex items-center gap-3">
             <div className="grid h-8 w-8 grid-cols-3 gap-1">
@@ -378,45 +425,44 @@ const LandingPage: React.FC = () => {
 
           <button
             onClick={handleClose}
-            className="border border-white/15 bg-white/5 px-4 py-2 font-mono text-xs text-white/70 transition-colors hover:border-cyan-300/60 hover:text-cyan-100"
+            className="border border-white/15 bg-white/5 px-4 py-2 font-mono text-xs text-white/70 transition-colors hover:border-cyan-300/60 hover:bg-cyan-200/10 hover:text-cyan-100"
           >
             Skip Intro
           </button>
         </header>
 
         <main
-          className={`relative flex flex-1 flex-col justify-center py-10 md:pb-16 md:pt-8 transition-all duration-1000 ${
+          className={`relative flex flex-1 flex-col justify-center py-8 md:pb-14 md:pt-6 transition-all duration-1000 ${
             isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
           }`}
         >
-          <div className="max-w-3xl">
-            <div className="mb-5 inline-flex border border-cyan-300/35 bg-cyan-300/10 px-3 py-2 font-mono text-xs text-cyan-100">
+          <div className="max-w-[46rem]">
+            <div className="mb-5 inline-flex items-center gap-3 border border-cyan-300/35 bg-cyan-300/10 px-3 py-2 font-mono text-xs text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.12)]">
+              <span className="h-2 w-2 bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.75)]" />
               CLIENT + API + CACHE + DB
             </div>
 
-            <h1 className="font-['Space_Grotesk'] text-[clamp(3rem,8vw,7.5rem)] font-semibold leading-[0.88] text-white">
-              Design systems in thin air.
-            </h1>
+            <TypingHeroTitle />
 
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-cyan-50/72 md:text-xl">
+            <p className="mt-6 max-w-xl text-base leading-7 text-cyan-50/68 md:text-lg">
               Snap infrastructure components into living 3D architecture diagrams
               and watch reliable systems assemble in real time.
             </p>
 
-            <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="mt-8 flex max-w-3xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-stretch">
               <button
                 onClick={handleGetStarted}
-                className="bg-cyan-200 px-6 py-4 font-['Space_Grotesk'] text-base font-semibold text-black transition-colors hover:bg-white"
+                className="h-14 bg-cyan-200 px-6 font-['Space_Grotesk'] text-base font-semibold text-black transition-colors hover:bg-white"
               >
                 Launch Studio
               </button>
               <button
                 onClick={handleCoBuild}
-                className="border border-cyan-200/45 bg-cyan-200/10 px-6 py-4 font-['Space_Grotesk'] text-base font-semibold text-cyan-50 transition-colors hover:bg-cyan-200/20"
+                className="h-14 border border-emerald-300/45 bg-emerald-300/10 px-6 font-['Space_Grotesk'] text-base font-semibold text-emerald-50 transition-colors hover:bg-emerald-300/20"
               >
                 Co-Build
               </button>
-              <div className="flex overflow-hidden border border-white/12 bg-black/30">
+              <div className="flex h-14 overflow-hidden border border-white/16 bg-black/45 backdrop-blur-md">
                 <input
                   value={joinCode}
                   onChange={(event) => setJoinCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12))}
@@ -427,17 +473,17 @@ const LandingPage: React.FC = () => {
                     }
                   }}
                   placeholder="ROOM CODE"
-                  className="w-36 bg-transparent px-4 py-4 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-cyan-50 placeholder:text-cyan-100/35 outline-none"
+                  className="w-36 bg-transparent px-4 font-mono text-xs font-semibold uppercase text-cyan-50 placeholder:text-cyan-100/35 outline-none"
                   aria-label="Room code"
                 />
                 <button
                   onClick={handleJoinCoBuild}
-                  className="border-l border-white/12 px-4 py-4 font-mono text-xs font-semibold text-cyan-100 transition-colors hover:bg-cyan-200/10"
+                  className="border-l border-white/12 px-4 font-mono text-xs font-semibold text-cyan-100 transition-colors hover:bg-cyan-200/10"
                 >
                   Join
                 </button>
               </div>
-              <div className="border border-white/12 bg-black/30 px-4 py-3 font-mono text-xs text-white/58">
+              <div className="flex h-14 items-center border border-white/12 bg-black/30 px-4 font-mono text-xs text-white/58">
                 HAND TRACKING READY
               </div>
             </div>
@@ -446,20 +492,20 @@ const LandingPage: React.FC = () => {
 
         {/* Footer */}
         <footer className="relative z-10 pb-5">
-          <div className="grid gap-px overflow-hidden border border-white/10 bg-white/10 md:grid-cols-3">
+          <div className="grid gap-px overflow-hidden border border-white/8 bg-white/5 md:grid-cols-3">
             {[
               ["01", "Pick components", "client, API, cache, queue, database"],
               ["02", "Snap to compose", "turn pairs into architecture patterns"],
               ["03", "Ship the diagram", "practice systems design visually"],
             ].map(([step, title, detail]) => (
-              <div key={step} className="bg-black/70 px-4 py-4 backdrop-blur-md">
-                <div className="font-mono text-[10px] text-cyan-200/50">
+              <div key={step} className="bg-black/48 px-5 py-3.5 backdrop-blur-md">
+                <div className="font-mono text-[10px] font-semibold text-cyan-200/58">
                   STEP {step}
                 </div>
-                <div className="mt-1 font-['Space_Grotesk'] text-base font-semibold text-white">
+                <div className="mt-1 font-['Space_Grotesk'] text-lg font-bold text-white">
                   {title}
                 </div>
-                <div className="mt-1 font-mono text-[11px] leading-5 text-white/42">
+                <div className="mt-1 font-['Space_Grotesk'] text-sm font-medium leading-5 text-white/56">
                   {detail}
                 </div>
               </div>
