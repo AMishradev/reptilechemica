@@ -28,11 +28,38 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   const asiKey = process.env.ASI_API_KEY;
+  const asiModel = process.env.ASI_MODEL || 'asi1-mini';
 
   if (!asiKey) {
     sendJson(res, 503, { error: 'ASI_API_KEY is not configured' });
     return;
   }
 
-  sendJson(res, 200, { reply: 'pending' });
+  try {
+    const body = JSON.parse(await readRequestBody(req)) as {
+      text?: string;
+      messages?: Array<{ role?: string; content?: string }>;
+    };
+    const sourceMessages = Array.isArray(body.messages)
+      ? body.messages
+      : [{ role: 'user', content: body.text }];
+    const messages = sourceMessages
+      .filter(item => item.role === 'user' || item.role === 'assistant')
+      .map(item => ({
+        role: item.role as 'user' | 'assistant',
+        content: (item.content ?? '').trim().slice(0, 2_000),
+      }))
+      .filter(item => item.content)
+      .slice(-12);
+
+    if (!messages.length || messages[messages.length - 1].role !== 'user') {
+      sendJson(res, 400, { error: 'Missing user message' });
+      return;
+    }
+
+    sendJson(res, 200, { reply: `received ${messages.length} messages with model ${asiModel}` });
+  } catch (error) {
+    console.error('Agentverse chat API error:', error);
+    sendJson(res, 500, { error: 'Agentverse chat API failed' });
+  }
 }
