@@ -212,7 +212,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
       content,
     };
     const nextMessages = [...chatMessages, userMessage];
-    const messagesForAgent = nextMessages
+    const messagesForAgent: AgentverseChatMessage[] = nextMessages
       .filter(item => item.id !== 'intro')
       .map(({ role, content }) => ({ role, content }));
 

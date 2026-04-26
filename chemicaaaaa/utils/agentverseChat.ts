@@ -1,7 +1,6 @@
-export interface AgentverseChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
+import type { LabChatMessage } from './asiLabChat';
+
+export type AgentverseChatMessage = LabChatMessage;
 
 export async function askAgentverseBrain(messages: AgentverseChatMessage[]): Promise<string> {
   const response = await fetch('/api/agentverse-chat', {
