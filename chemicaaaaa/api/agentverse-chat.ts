@@ -1,5 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 
+const atomisSystemPrompt =
+  'You are Atomis, the Reptile Chemica lab guide. You only answer questions about the Reptile Chemica system-design lab, computer networking, distributed systems, cloud architecture, and system design. Keep answers under 90 words, friendly, direct, and plain text with no emoji, markdown, bullets, or bold markers. In this lab, valid fusions include APP + CACHE = FAST / Cached Service, APP + DB = CRUD, APP + QUEUE = ASYNC, LB + APP = POOL, API + APP = SVC, API + LB = ROUTE, DB + CACHE = READ, QUEUE + DB = JOBDB, CLIENT + DNS = EDGE, CDN + OBJ = MEDIA, CDN + API = BFF, CLIENT + CDN = STATIC, FAST + ASYNC = SCALE. If a user says APP and CACHE cannot combine, explain that they can: select the APP and CACHE lab components exactly, then perform the snap/fusion gesture.';
+
 const readRequestBody = (req: IncomingMessage) =>
   new Promise<string>((resolve, reject) => {
     let body = '';
@@ -57,7 +60,40 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return;
     }
 
-    sendJson(res, 200, { reply: `received ${messages.length} messages with model ${asiModel}` });
+    const asiResponse = await fetch('https://api.asi1.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${asiKey}`,
+      },
+      body: JSON.stringify({
+        model: asiModel,
+        messages: [
+          { role: 'system', content: atomisSystemPrompt },
+          ...messages,
+        ],
+        max_tokens: 220,
+        temperature: 0.35,
+      }),
+    });
+    const payload = await asiResponse.json().catch(() => null) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      error?: { message?: string };
+    } | null;
+
+    if (!asiResponse.ok) {
+      console.error('ASI:One chat API error:', payload?.error?.message ?? asiResponse.statusText);
+      sendJson(res, asiResponse.status, { error: 'ASI:One chat request failed' });
+      return;
+    }
+
+    const reply = payload?.choices?.[0]?.message?.content?.trim();
+    if (!reply) {
+      sendJson(res, 502, { error: 'ASI:One returned an empty response' });
+      return;
+    }
+
+    sendJson(res, 200, { reply });
   } catch (error) {
     console.error('Agentverse chat API error:', error);
     sendJson(res, 500, { error: 'Agentverse chat API failed' });
