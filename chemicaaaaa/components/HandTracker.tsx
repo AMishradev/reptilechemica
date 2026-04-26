@@ -7,12 +7,30 @@ import { TrackingData } from '../types';
 interface HandTrackerProps {
   onUpdate: (data: TrackingData) => void;
   onCameraReady: () => void;
+  onCameraError?: (message: string) => void;
 }
 
-const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) => {
+const getCameraErrorMessage = (err: unknown) => {
+  if (err instanceof DOMException) {
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      return 'Camera blocked by browser permission.';
+    }
+    if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+      return 'No camera detected.';
+    }
+    if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+      return 'Camera is already in use by another app.';
+    }
+  }
+
+  return 'Camera could not start.';
+};
+
+const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady, onCameraError }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const onUpdateRef = useRef(onUpdate);
+  const onCameraErrorRef = useRef(onCameraError);
   
   // Gesture Buffers for Reset Detection
   const leftBuffer = useRef(new GestureBuffer());
@@ -23,6 +41,10 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
   useEffect(() => {
     onUpdateRef.current = onUpdate;
   }, [onUpdate]);
+
+  useEffect(() => {
+    onCameraErrorRef.current = onCameraError;
+  }, [onCameraError]);
 
   useEffect(() => {
     let handLandmarker: HandLandmarker | null = null;
@@ -83,7 +105,11 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
         };
       } catch (err) {
         console.error("Camera Error:", err);
-        if (isMounted) setError("Camera access denied.");
+        if (isMounted) {
+          const message = getCameraErrorMessage(err);
+          setError(message);
+          onCameraErrorRef.current?.(message);
+        }
       }
     };
 

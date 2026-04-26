@@ -73,6 +73,8 @@ const getRepeatedFailureAdvice = (leftSymbol: string, rightSymbol: string) => {
 
 const App: React.FC = () => {
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraRetryKey, setCameraRetryKey] = useState(0);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const visualPreviewElement = useMemo(() => {
     if (!import.meta.env.DEV) return null;
@@ -269,7 +271,19 @@ const App: React.FC = () => {
   const snapFuseArmedRef = useRef(true);
 
   const handleCameraReady = useCallback(() => {
+    setCameraError(null);
     setIsCameraReady(true);
+  }, []);
+
+  const handleCameraError = useCallback((message: string) => {
+    trackingDataRef.current = createIdleTrackingData(trackingDataRef.current.cameraAspect);
+    setCameraError(message);
+    setIsCameraReady(true);
+  }, []);
+
+  const retryCamera = useCallback(() => {
+    setCameraError(null);
+    setCameraRetryKey(key => key + 1);
   }, []);
 
   useEffect(() => {
@@ -651,8 +665,13 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden select-none">
-      {!visualPreviewElement && !isDashboardOpen && (
-        <HandTracker onUpdate={onTrackingUpdate} onCameraReady={handleCameraReady} />
+      {!visualPreviewElement && !isDashboardOpen && !cameraError && (
+        <HandTracker
+          key={cameraRetryKey}
+          onUpdate={onTrackingUpdate}
+          onCameraReady={handleCameraReady}
+          onCameraError={handleCameraError}
+        />
       )}
       
       {!shouldShowLab && (
@@ -660,6 +679,26 @@ const App: React.FC = () => {
           <div className="flex flex-col items-center">
             <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-6"></div>
             <p className="font-['Space_Grotesk'] text-xl font-semibold animate-pulse tracking-normal text-cyan-500">Initializing lab</p>
+          </div>
+        </div>
+      )}
+
+      {cameraError && !visualPreviewElement && !isDashboardOpen && (
+        <div className="absolute top-6 left-1/2 z-[70] w-[min(92vw,420px)] -translate-x-1/2 pointer-events-auto">
+          <div className="border border-amber-300/40 bg-black/80 backdrop-blur-md shadow-[0_0_24px_rgba(251,191,36,0.18)] px-4 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-amber-100">Camera blocked</p>
+                <p className="font-mono text-xs text-amber-100/75">{cameraError}</p>
+              </div>
+              <button
+                type="button"
+                onClick={retryCamera}
+                className="shrink-0 border border-cyan-400/50 bg-cyan-400/10 px-3 py-2 font-mono text-xs font-semibold text-cyan-100 transition-colors hover:bg-cyan-400/20"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -36,6 +36,28 @@ const getMascotMood = (
   return 'idle';
 };
 
+const getSpeakableMascotText = (text: string) =>
+  text
+    .replace(/::|\/\/|->|→/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 360);
+
+const getPerformedMascotText = (text: string, mood: MascotMood, message: string) => {
+  const context = `${message} ${text}`.toUpperCase();
+
+  if (mood === 'success') return `[happily] ${text}`;
+  if (mood === 'alert' || context.match(/UNSTABLE|WARNING|FAILED|INCOMPATIBLE|TRY AGAIN|NO MATCH/)) {
+    return `[concerned] ${text}`;
+  }
+  if (mood === 'thinking' || context.match(/OBSERVING|ANALYZING|INITIALIZING|GENERATING|LOADING/)) {
+    return `[curious] ${text}`;
+  }
+  if (context.match(/READY|PICK TWO|NEXT DESIGN|WELCOME/)) return `[warmly] ${text}`;
+
+  return `[curious] ${text}`;
+};
+
 const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, trackingData, combinedElement, advice }) => {
   const [mascotText, setMascotText] = useState("Welcome to the design lab. Pick two components.");
   const [isVisible, setIsVisible] = useState(true);
@@ -51,6 +73,88 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
   const lastUpdateRef = useRef<number>(Date.now());
   // Track the timeout to allow cleanup
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speechAbortRef = useRef<AbortController | null>(null);
+  const speechAudioRef = useRef<HTMLAudioElement | null>(null);
+  const speechUrlRef = useRef<string | null>(null);
+  const lastSpokenTextRef = useRef<string>('');
+
+  const stopMascotSpeech = () => {
+    speechAbortRef.current?.abort();
+    speechAbortRef.current = null;
+
+    if (speechAudioRef.current) {
+      speechAudioRef.current.pause();
+      speechAudioRef.current = null;
+    }
+
+    if (speechUrlRef.current) {
+      URL.revokeObjectURL(speechUrlRef.current);
+      speechUrlRef.current = null;
+    }
+
+    window.speechSynthesis?.cancel();
+  };
+
+  const speakWithBrowserVoice = (text: string) => {
+    if (!('speechSynthesis' in window)) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(voice =>
+      /aria|jenny|samantha|google us english|english/i.test(voice.name)
+    ) ?? voices.find(voice => voice.lang.toLowerCase().startsWith('en'));
+
+    if (preferredVoice) utterance.voice = preferredVoice;
+    utterance.pitch = 1.16;
+    utterance.rate = 1.02;
+    utterance.volume = 0.86;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const speakMascotText = async (text: string, performedText: string) => {
+    stopMascotSpeech();
+
+    const controller = new AbortController();
+    speechAbortRef.current = controller;
+
+    try {
+      const response = await fetch('/api/mascot-speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: performedText }),
+        signal: controller.signal,
+      });
+      const contentType = response.headers.get('Content-Type') ?? '';
+
+      if (!response.ok || !contentType.includes('audio')) {
+        throw new Error('Mascot speech endpoint unavailable');
+      }
+
+      const audioBlob = await response.blob();
+      if (controller.signal.aborted) return;
+
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      audio.volume = 0.86;
+      speechUrlRef.current = audioUrl;
+      speechAudioRef.current = audio;
+
+      audio.addEventListener('ended', () => {
+        if (speechUrlRef.current === audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+          speechUrlRef.current = null;
+          speechAudioRef.current = null;
+        }
+      });
+
+      await audio.play();
+    } catch {
+      if (!controller.signal.aborted) {
+        speakWithBrowserVoice(text);
+      }
+    }
+  };
 
   // Handle new component creation - call Gemini API
   useEffect(() => {
@@ -204,9 +308,29 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     setIsVisible(!isDashboardOpen);
   }, [isDashboardOpen]);
 
-  if (!isVisible) return null;
-
   const mascotMood = getMascotMood(message, mascotText, combinedElement, isGeminiLoading);
+
+  useEffect(() => {
+    if (!isVisible) {
+      stopMascotSpeech();
+      return;
+    }
+
+    const speakableText = getSpeakableMascotText(mascotText);
+    if (!speakableText || speakableText === lastSpokenTextRef.current) return;
+
+    const timeoutId = setTimeout(() => {
+      lastSpokenTextRef.current = speakableText;
+      const performedText = getPerformedMascotText(speakableText, mascotMood, message);
+      void speakMascotText(speakableText, performedText);
+    }, 450);
+
+    return () => clearTimeout(timeoutId);
+  }, [mascotText, isVisible, mascotMood, message]);
+
+  useEffect(() => () => stopMascotSpeech(), []);
+
+  if (!isVisible) return null;
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end pointer-events-none overflow-visible ">
