@@ -6,7 +6,7 @@ import UIOverlay from './components/UIOverlay';
 import Dashboard from './components/Dashboard';
 import MascotGuide from './components/MascotGuide';
 import { ELEMENTS, COMBINATIONS } from './constants';
-import { TrackingData, ElementData, GameState } from './types';
+import { TrackingData, ElementData, GameState, SpotifyBuildState } from './types';
 import successChime from './assets/sounds/success-chime.mp3';
 import softError from './assets/sounds/soft-error.mp3';
 
@@ -71,6 +71,31 @@ const getRepeatedFailureAdvice = (leftSymbol: string, rightSymbol: string) => {
   return `${leftAdvice}. ${rightAdvice}.`;
 };
 
+const SPOTIFY_BASE_SYMBOLS = ['CLIENT', 'DNS', 'CDN', 'LB', 'API', 'APP', 'DB', 'CACHE', 'QUEUE', 'OBJ'];
+const SPOTIFY_RELEVANT_SYMBOLS = [
+  'EDGE',
+  'CONTENT',
+  'ROUTE',
+  'SVC',
+  'CRUD',
+  'SCALE',
+  'STATIC',
+  'MEDIA',
+  'FAST',
+  'ASYNC',
+  'READ',
+  'JOBDB',
+  'DATA',
+  'WORKER',
+];
+const SPOTIFY_TARGET_PIECE_COUNT = 4;
+
+const createInactiveSpotifyBuild = (): SpotifyBuildState => ({
+  active: false,
+  builtSymbols: [],
+  targetPieceCount: SPOTIFY_TARGET_PIECE_COUNT,
+});
+
 const App: React.FC = () => {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -112,6 +137,8 @@ const App: React.FC = () => {
     targetSymbol: string | null;
     targetName: string | null;
   }>({ active: false, difficulty: null, targetSymbol: null, targetName: null });
+  const [spotifyBuild, setSpotifyBuild] = useState<SpotifyBuildState>(createInactiveSpotifyBuild);
+  const activeSpotifyBuild = spotifyBuild.active ? spotifyBuild : null;
 
   // Fallback to prevent infinite loading if camera fails to init
   useEffect(() => {
@@ -175,7 +202,7 @@ const App: React.FC = () => {
   // Design Warning System
   useEffect(() => {
     if (gameState === 'dead') return;
-    if (quizMode.active) return; // Disable warnings in Quiz Mode
+    if (quizMode.active || spotifyBuild.active) return; // Disable warnings in guided modes
     
     const symbols = [leftElement.symbol, rightElement.symbol];
     const hasClient = symbols.includes('CLIENT');
@@ -186,7 +213,7 @@ const App: React.FC = () => {
            setMessage("WARNING: Clients should not talk directly to databases.");
        }
     }
-  }, [leftElement, rightElement, gameState, message, quizMode.active]);
+  }, [leftElement, rightElement, gameState, message, quizMode.active, spotifyBuild.active]);
 
   const saveElement = (element: ElementData) => {
       const history = JSON.parse(localStorage.getItem('chemLabHistory') || '[]');
@@ -251,8 +278,9 @@ const App: React.FC = () => {
         setRightElement(slots[1] || slots[0]);
       }
       
-      setQuizMode({ active: true, difficulty, targetSymbol: target, targetName });
-      setIsDashboardOpen(false);
+	      setQuizMode({ active: true, difficulty, targetSymbol: target, targetName });
+	      setSpotifyBuild(createInactiveSpotifyBuild());
+	      setIsDashboardOpen(false);
       setMessage(`QUIZ: CREATE ${targetName.toUpperCase()}`);
       // Clear any previous lab created slots
       setLabCreatedSlots([]);
@@ -267,6 +295,7 @@ const App: React.FC = () => {
   const lastLeftHoverRef = useRef<string | null>(null);
   const lastRightHoverRef = useRef<string | null>(null);
   const failedFusionAttemptsRef = useRef<Record<string, number>>({});
+  const preSpotifyLabSlotsRef = useRef<ElementData[] | null>(null);
 
   const snapFuseArmedRef = useRef(true);
 
@@ -295,9 +324,94 @@ const App: React.FC = () => {
     snapFuseArmedRef.current = true;
   }, [isDashboardOpen]);
 
-  useEffect(() => {
+  const startSpotifyChallenge = useCallback(() => {
+    const slots = SPOTIFY_BASE_SYMBOLS
+      .map(symbol => ELEMENTS.find(element => element.symbol === symbol))
+      .filter((item): item is ElementData => Boolean(item));
+
+    preSpotifyLabSlotsRef.current = [...labSlots];
+    setLabSlots(slots);
+    setLabCreatedSlots([]);
+    setCombinedElement(null);
+    setQuizMode({ active: false, difficulty: null, targetSymbol: null, targetName: null });
+    setSpotifyBuild({
+      active: true,
+      builtSymbols: [],
+      targetPieceCount: SPOTIFY_TARGET_PIECE_COUNT,
+    });
+    setMascotAdvice("Snap useful components together and watch the Spotify system map light up.");
+    fusionErrorRef.current = false;
+    snapFuseArmedRef.current = true;
+
+    if (slots.length > 0) {
+      setLeftElement(slots[0]);
+      setRightElement(slots[1] || slots[0]);
+    }
+
+    setIsDashboardOpen(false);
+    setMessage("Design Spotify: assemble the streaming platform");
+  }, [labSlots]);
+
+  const returnFromSpotifyChallenge = useCallback((nextMessage = "LAB READY") => {
+    if (preSpotifyLabSlotsRef.current) {
+      setLabSlots(preSpotifyLabSlotsRef.current);
+      localStorage.setItem('labSlots', JSON.stringify(preSpotifyLabSlotsRef.current));
+      preSpotifyLabSlotsRef.current = null;
+    }
+    setSpotifyBuild(createInactiveSpotifyBuild());
+    setCombinedElement(null);
+    setLabCreatedSlots([]);
     setMascotAdvice(null);
-  }, [leftElement.symbol, rightElement.symbol]);
+    fusionErrorRef.current = false;
+    snapFuseArmedRef.current = true;
+    setIsDashboardOpen(true);
+    setMessage(nextMessage);
+  }, []);
+
+  const undoSpotifyPiece = useCallback(() => {
+    if (!spotifyBuild.active) return;
+
+    const removedSymbol = spotifyBuild.builtSymbols[spotifyBuild.builtSymbols.length - 1];
+    if (!removedSymbol) {
+      setMessage("Design Spotify: nothing to undo yet");
+      return;
+    }
+
+    setSpotifyBuild(prev => ({
+      ...prev,
+      builtSymbols: prev.builtSymbols.slice(0, -1),
+    }));
+    setLabCreatedSlots(prev => prev.filter(element => element.symbol !== removedSymbol));
+    setCombinedElement(null);
+    fusionErrorRef.current = false;
+    snapFuseArmedRef.current = true;
+    setMessage(`Design Spotify: removed ${removedSymbol}`);
+  }, [spotifyBuild.active, spotifyBuild.builtSymbols]);
+
+  const submitSpotifyDesign = useCallback(() => {
+    if (!spotifyBuild.active) return;
+
+    if (spotifyBuild.builtSymbols.length >= spotifyBuild.targetPieceCount) {
+      setMessage("Spotify design passed. Returning...");
+      setMascotAdvice("Solid draft: the map has enough working paths to represent a real streaming platform.");
+      setTimeout(() => returnFromSpotifyChallenge("LAB READY"), 2500);
+      return;
+    }
+
+    setMessage(`Spotify design failed. Add ${spotifyBuild.targetPieceCount - spotifyBuild.builtSymbols.length} more pieces`);
+    setMascotAdvice("Add a few more working paths before submitting the design.");
+    fusionErrorRef.current = true;
+    setTimeout(() => returnFromSpotifyChallenge("LAB READY"), 2600);
+  }, [returnFromSpotifyChallenge, spotifyBuild.active, spotifyBuild.builtSymbols, spotifyBuild.targetPieceCount]);
+
+  const stopSpotifyChallenge = useCallback(() => {
+    if (!spotifyBuild.active) return;
+    returnFromSpotifyChallenge("LAB READY");
+  }, [returnFromSpotifyChallenge, spotifyBuild.active]);
+
+  useEffect(() => {
+    if (!spotifyBuild.active) setMascotAdvice(null);
+  }, [leftElement.symbol, rightElement.symbol, spotifyBuild.active]);
 
   const checkCombination = useCallback(() => {
     if (combinedElement || gameState === 'dead') return;
@@ -309,12 +423,53 @@ const App: React.FC = () => {
       (c.elements[1] === leftElement.symbol && c.elements[0] === rightElement.symbol)
     );
 
-    if (combo) {
-        failedFusionAttemptsRef.current[getPairKey(leftElement.symbol, rightElement.symbol)] = 0;
-        setMascotAdvice(null);
+	    if (combo) {
+	        failedFusionAttemptsRef.current[getPairKey(leftElement.symbol, rightElement.symbol)] = 0;
+	        setMascotAdvice(null);
 
-        // QUIZ LOGIC
-        if (quizMode.active && quizMode.targetSymbol) {
+	        if (spotifyBuild.active) {
+	            const result = combo.result;
+	            const isRelevant = SPOTIFY_RELEVANT_SYMBOLS.includes(result.symbol);
+	            if (!isRelevant) {
+	                setMessage(`${result.name} is stable, but not useful for Spotify`);
+	                setMascotAdvice("For this challenge, focus on entry, content delivery, service routing, persistence, and scaling.");
+	                fusionErrorRef.current = false;
+	                return;
+	            }
+
+	            if (spotifyBuild.builtSymbols.includes(result.symbol)) {
+	                setMessage(`Design Spotify: ${result.symbol} is already installed`);
+	                setMascotAdvice("That piece is already part of the architecture. Try composing the next missing capability.");
+	                fusionErrorRef.current = false;
+	                return;
+	            }
+
+	            const nextBuiltSymbols = [...spotifyBuild.builtSymbols, result.symbol];
+	            setSpotifyBuild(prev => ({
+	                ...prev,
+	                builtSymbols: prev.builtSymbols.includes(result.symbol)
+	                  ? prev.builtSymbols
+	                  : [...prev.builtSymbols, result.symbol],
+	            }));
+	            setLabCreatedSlots(prev => (
+	                prev.some(element => element.symbol === result.symbol)
+	                  ? prev
+	                  : [...prev, result]
+	            ));
+	            setCombinedElement(result);
+	            setMessage(`Spotify piece added: ${result.name}`);
+	            setMascotAdvice(`Added ${result.name}. The map now has ${nextBuiltSymbols.length} assembled pieces.`);
+	            fusionErrorRef.current = false;
+
+	            setTimeout(() => {
+	                setCombinedElement(current => current?.symbol === result.symbol ? null : current);
+	                setMessage(`Design Spotify: ${nextBuiltSymbols.length} pieces assembled`);
+	            }, 1200);
+	            return;
+	        }
+
+	        // QUIZ LOGIC
+	        if (quizMode.active && quizMode.targetSymbol) {
              // Check if result matches target
              if (combo.result.symbol === quizMode.targetSymbol) {
                  setCombinedElement(combo.result);
@@ -388,17 +543,17 @@ const App: React.FC = () => {
       setMessage("Design Unstable: Incompatible");
       fusionErrorRef.current = true; 
     }
-  }, [leftElement, rightElement, combinedElement, gameState, quizMode]);
+	  }, [leftElement, rightElement, combinedElement, gameState, quizMode, spotifyBuild]);
 
   // Play success sound when components are successfully combined
   const prevCombinedElementRef = useRef<ElementData | null>(null);
   useEffect(() => {
     // Only play sound when combinedElement changes from null to a value (new combination)
-    if (combinedElement && 
-        !prevCombinedElementRef.current &&
-        combinedElement.symbol !== 'BOOM' && 
-        combinedElement.symbol !== 'X' &&
-        (message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS'))) {
+	    if (combinedElement &&
+	        !prevCombinedElementRef.current &&
+	        combinedElement.symbol !== 'BOOM' &&
+	        combinedElement.symbol !== 'X' &&
+	        (message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS') || message.includes('Spotify piece added'))) {
       try {
         const audio = new Audio(successChime);
         audio.volume = 0.7;
@@ -417,16 +572,17 @@ const App: React.FC = () => {
   const prevMessageRef = useRef<string>('');
   useEffect(() => {
     // Check if this is an error message
-    const isError = message.includes('Failed') || 
-                    message.includes('Incompatible') || 
-                    message.includes('QUIZ FAILED') || 
-                    message.includes('Design Unstable');
+	    const isError = message.includes('Failed') ||
+	                    message.includes('failed') ||
+	                    message.includes('Incompatible') ||
+	                    message.includes('QUIZ FAILED') ||
+	                    message.includes('Design Unstable');
     
     // Check if this is a new error message (different from previous)
     const isNewError = isError && message !== prevMessageRef.current;
     
     // Don't play if it's a success message
-    const isSuccess = message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS');
+	    const isSuccess = message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS') || message.includes('passed');
     
     // Play error sound for new error messages
     if (isNewError && !isSuccess) {
@@ -488,7 +644,27 @@ const App: React.FC = () => {
       if (!isPinching && !hit.id.startsWith('shelf-item-')) {
           return; // For non-shelf items, require pinch to interact
       }
-      
+
+      const runThrottledAction = (action: () => void) => {
+          const now = Date.now();
+          if (now - lastInteractionTime.current < 650) return;
+          lastInteractionTime.current = now;
+          action();
+      };
+
+      if (hit.id === 'spotify-undo') {
+          runThrottledAction(undoSpotifyPiece);
+          return;
+      }
+      if (hit.id === 'spotify-submit') {
+          runThrottledAction(submitSpotifyDesign);
+          return;
+      }
+      if (hit.id === 'spotify-stop') {
+          runThrottledAction(stopSpotifyChallenge);
+          return;
+      }
+
       // 1. Dashboard Logic
       if (hit.id === 'dashboard-toggle') {
           setIsDashboardOpen(true);
@@ -500,39 +676,40 @@ const App: React.FC = () => {
           setMessage("LAB READY");
           return;
       }
-      if (hit.id.startsWith('dashboard-item-')) {
-           // Trigger click on the component to select it
-           hit.click();
-           return;
+      if (hit.id.startsWith('dashboard-')) {
+          hit.click();
+          return;
       }
 
       // 2. Shelf Logic - Allow hover selection for shelf items
       if (hit.id.startsWith('shelf-item-')) {
           const symbol = hit.dataset.symbol;
-          
+
           // Check both dashboard slots and lab-created slots
-          const selectedElement = labSlots.find(e => e.symbol === symbol) 
+          const selectedElement = labSlots.find(e => e.symbol === symbol)
             || labCreatedSlots.find(e => e.symbol === symbol);
-          
+
           if (selectedElement) {
-             lastInteractionTime.current = Date.now();
-             if (hand === 'LEFT') {
-                 setLeftElement(selectedElement);
-                 setMessage("ELEMENT SWAPPED (LEFT)");
-             } else {
-                 setRightElement(selectedElement);
-                 setMessage("ELEMENT SWAPPED (RIGHT)");
-             }
-             setTimeout(() => {
-                 if (quizMode.active && quizMode.targetName) {
-                     setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
-                 } else {
-                     setMessage("LAB READY");
-                 }
-             }, 1000);
+              lastInteractionTime.current = Date.now();
+              if (hand === 'LEFT') {
+                  setLeftElement(selectedElement);
+                  setMessage("ELEMENT SWAPPED (LEFT)");
+              } else {
+                  setRightElement(selectedElement);
+                  setMessage("ELEMENT SWAPPED (RIGHT)");
+              }
+              setTimeout(() => {
+                  if (spotifyBuild.active) {
+                      setMessage("Design Spotify: assemble the streaming platform");
+                  } else if (quizMode.active && quizMode.targetName) {
+                      setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
+                  } else {
+                      setMessage("LAB READY");
+                  }
+              }, 1000);
           }
       }
-  }, [labSlots, labCreatedSlots, isDashboardOpen, quizMode]);
+  }, [labSlots, labCreatedSlots, undoSpotifyPiece, submitSpotifyDesign, stopSpotifyChallenge, isDashboardOpen, quizMode, spotifyBuild.active]);
 
   const onTrackingUpdate = useCallback((data: TrackingData) => {
     if (isDashboardOpen) {
@@ -582,13 +759,13 @@ const App: React.FC = () => {
     
     if (gameState === 'dead') return;
 
-    if (data.isResetGesture || (data.isClosedFist && combinedElement)) {
-        if (combinedElement) {
-            if (!quizMode.active) {
-                saveElement(combinedElement);
-                setMessage("ELEMENT SAVED TO SHELF");
-                setTimeout(() => setMessage("LAB READY"), 2000);
-            }
+	    if (data.isResetGesture || (data.isClosedFist && combinedElement)) {
+	        if (combinedElement) {
+	            if (!quizMode.active && !spotifyBuild.active) {
+	                saveElement(combinedElement);
+	                setMessage("ELEMENT SAVED TO SHELF");
+	                setTimeout(() => setMessage("LAB READY"), 2000);
+	            }
             setCombinedElement(null);
             fusionErrorRef.current = false;
             snapFuseArmedRef.current = false;
@@ -597,10 +774,12 @@ const App: React.FC = () => {
                 setCombinedElement(null);
                 fusionErrorRef.current = false;
                 snapFuseArmedRef.current = true;
-                if (quizMode.active && quizMode.targetName) {
-                    setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
-                } else {
-                    setMessage("LAB READY");
+	                if (spotifyBuild.active) {
+	                    setMessage("Design Spotify: assemble the streaming platform");
+	                } else if (quizMode.active && quizMode.targetName) {
+	                    setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
+	                } else {
+	                    setMessage("LAB READY");
                 }
             }
         }
@@ -611,10 +790,12 @@ const App: React.FC = () => {
         if (!data.isSnapReady && data.handDistance > 0.25) {
             fusionErrorRef.current = false;
             snapFuseArmedRef.current = true;
-            if (quizMode.active && quizMode.targetName) {
-                setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
-            } else {
-                setMessage("LAB READY");
+	            if (spotifyBuild.active) {
+	                setMessage("Design Spotify: assemble the streaming platform");
+	            } else if (quizMode.active && quizMode.targetName) {
+	                setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
+	            } else {
+	                setMessage("LAB READY");
             }
         }
         return;
@@ -661,7 +842,7 @@ const App: React.FC = () => {
         snapFuseArmedRef.current = true;
     }
 
-  }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode]);
+	  }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode, spotifyBuild.active]);
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden select-none">
@@ -703,33 +884,37 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {shouldShowLab && (
-        <>
-          {!isDashboardOpen && (
-            <>
-            <Scene 
-                leftElement={leftElement} 
-                rightElement={rightElement} 
-                combinedElement={displayedCombinedElement}
-                trackingData={trackingDataRef}
-            />
-            <UIOverlay
-                leftElement={leftElement}
-                rightElement={rightElement}
-                combinedElement={displayedCombinedElement}
-                message={displayedMessage}
-                trackingRef={trackingDataRef}
-                labSlots={labSlots}
-                labCreatedSlots={labCreatedSlots}
-                isDashboardOpen={isDashboardOpen}
-                onToggleDashboard={() => setIsDashboardOpen(!isDashboardOpen)}
-                savedElements={savedElements}
-                gameState={gameState}
-                deathReason={deathReason}
-                showSixtySeven={showSixtySeven}
-            />
-            </>
-          )}
+	      {shouldShowLab && (
+	        <>
+	          {!isDashboardOpen && (
+	            <>
+	              <Scene
+	                  leftElement={leftElement}
+	                  rightElement={rightElement}
+	                  combinedElement={displayedCombinedElement}
+	                  trackingData={trackingDataRef}
+	                  spotifyBuild={activeSpotifyBuild}
+	              />
+	              <UIOverlay
+	                  leftElement={leftElement}
+	                  rightElement={rightElement}
+	                  combinedElement={displayedCombinedElement}
+	                  message={displayedMessage}
+	                  trackingRef={trackingDataRef}
+	                  labSlots={labSlots}
+	                  labCreatedSlots={labCreatedSlots}
+	                  spotifyBuild={activeSpotifyBuild}
+	                  onSpotifyUndo={undoSpotifyPiece}
+	                  onSpotifySubmit={submitSpotifyDesign}
+	                  isDashboardOpen={isDashboardOpen}
+	                  onToggleDashboard={() => setIsDashboardOpen(!isDashboardOpen)}
+	                  savedElements={savedElements}
+	                  gameState={gameState}
+	                  deathReason={deathReason}
+	                  showSixtySeven={showSixtySeven}
+	              />
+	            </>
+	          )}
             <Dashboard 
                isOpen={isDashboardOpen}
                onClose={() => {
@@ -757,10 +942,11 @@ const App: React.FC = () => {
                  
                  setIsDashboardOpen(false);
                }}
-               savedElements={savedElements}
-               labSlots={labSlots}
-               onStartQuiz={startQuiz}
-            />
+	               savedElements={savedElements}
+	               labSlots={labSlots}
+	               onStartQuiz={startQuiz}
+	               onStartSpotify={startSpotifyChallenge}
+	            />
             {!isDashboardOpen && (
             <MascotGuide 
                message={displayedMessage}

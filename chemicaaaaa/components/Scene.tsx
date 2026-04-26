@@ -8,7 +8,7 @@ import ParticleSphere from './ParticleSphere';
 import WaterSimulation from './WaterSimulation'; 
 import { SaltPile, SaltLattice } from './SaltSimulation'; 
 import AtomLabel from './AtomLabel';
-import { ElementData, TrackingData } from '../types';
+import { ElementData, TrackingData, SpotifyBuildState } from '../types';
 import { COMBINATIONS, ELEMENTS } from '../constants';
 import * as THREE from 'three';
 
@@ -17,6 +17,7 @@ interface SceneProps {
   rightElement: ElementData;
   combinedElement: ElementData | null;
   trackingData: React.MutableRefObject<TrackingData>;
+  spotifyBuild?: SpotifyBuildState | null;
 }
 
 const getComponentData = (symbol: string) => {
@@ -922,6 +923,215 @@ const VISUAL_PRESETS: Record<string, VisualPreset> = {
   },
 };
 
+const SPOTIFY_NODE_POSITIONS: Record<string, DiagramPosition> = {
+  CLIENT: pos(-3.15, 0.95),
+  DNS: pos(-3.15, 1.95),
+  CDN: pos(-1.65, 1.35),
+  OBJ: pos(-0.05, 1.95),
+  API: pos(-1.55, -0.15),
+  LB: pos(-0.1, -0.15),
+  APP: pos(1.35, -0.15),
+  DB: pos(2.95, -1.15),
+  CACHE: pos(2.95, 0.95),
+  QUEUE: pos(1.35, -1.65),
+};
+
+const SPOTIFY_BLUEPRINT_NODE_SYMBOLS = ['CLIENT', 'DNS', 'CDN', 'OBJ', 'API', 'LB', 'APP', 'DB', 'CACHE', 'QUEUE'];
+
+const SPOTIFY_SEGMENTS: Array<{
+  symbol: string;
+  nodes: string[];
+  beams: DiagramBeamConfig[];
+  flows?: DiagramFlowConfig[];
+}> = [
+  {
+    symbol: 'EDGE',
+    nodes: ['CLIENT', 'DNS'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.CLIENT, end: SPOTIFY_NODE_POSITIONS.DNS, color: '#38bdf8', opacity: 0.52 }],
+  },
+  {
+    symbol: 'STATIC',
+    nodes: ['CLIENT', 'CDN'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.CLIENT, end: SPOTIFY_NODE_POSITIONS.CDN, color: '#67e8f9', opacity: 0.62 }],
+  },
+  {
+    symbol: 'MEDIA',
+    nodes: ['CDN', 'OBJ'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.OBJ, end: SPOTIFY_NODE_POSITIONS.CDN, color: '#c084fc', opacity: 0.58 }],
+  },
+  {
+    symbol: 'CONTENT',
+    nodes: ['CLIENT', 'CDN', 'OBJ'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.CDN, end: SPOTIFY_NODE_POSITIONS.CLIENT, color: '#a78bfa', opacity: 0.36, radius: 0.014 }],
+  },
+  {
+    symbol: 'ROUTE',
+    nodes: ['API', 'LB'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.API, end: SPOTIFY_NODE_POSITIONS.LB, color: '#2dd4bf', opacity: 0.7 }],
+  },
+  {
+    symbol: 'SVC',
+    nodes: ['API', 'APP'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.LB, end: SPOTIFY_NODE_POSITIONS.APP, color: '#f472b6', opacity: 0.66 }],
+  },
+  {
+    symbol: 'CRUD',
+    nodes: ['APP', 'DB'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.APP, end: SPOTIFY_NODE_POSITIONS.DB, color: '#fb923c', opacity: 0.62 }],
+  },
+  {
+    symbol: 'FAST',
+    nodes: ['APP', 'CACHE'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.APP, end: SPOTIFY_NODE_POSITIONS.CACHE, color: '#4ade80', opacity: 0.62 }],
+  },
+  {
+    symbol: 'ASYNC',
+    nodes: ['APP', 'QUEUE'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.APP, end: SPOTIFY_NODE_POSITIONS.QUEUE, color: '#60a5fa', opacity: 0.58 }],
+  },
+  {
+    symbol: 'SCALE',
+    nodes: ['APP', 'CACHE', 'QUEUE'],
+    beams: [
+      { start: SPOTIFY_NODE_POSITIONS.CACHE, end: SPOTIFY_NODE_POSITIONS.APP, color: '#bbf7d0', opacity: 0.34, radius: 0.012 },
+      { start: SPOTIFY_NODE_POSITIONS.QUEUE, end: SPOTIFY_NODE_POSITIONS.APP, color: '#bfdbfe', opacity: 0.28, radius: 0.012 },
+    ],
+  },
+  {
+    symbol: 'READ',
+    nodes: ['DB', 'CACHE'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.DB, end: SPOTIFY_NODE_POSITIONS.CACHE, color: '#a3e635', opacity: 0.28, radius: 0.012 }],
+  },
+  {
+    symbol: 'JOBDB',
+    nodes: ['QUEUE', 'DB'],
+    beams: [{ start: SPOTIFY_NODE_POSITIONS.QUEUE, end: SPOTIFY_NODE_POSITIONS.DB, color: '#818cf8', opacity: 0.28, radius: 0.012 }],
+  },
+];
+
+const SPOTIFY_BLUEPRINT_BEAMS: DiagramBeamConfig[] = [
+  { start: SPOTIFY_NODE_POSITIONS.CLIENT, end: SPOTIFY_NODE_POSITIONS.DNS, color: '#38bdf8' },
+  { start: SPOTIFY_NODE_POSITIONS.CLIENT, end: SPOTIFY_NODE_POSITIONS.CDN, color: '#67e8f9' },
+  { start: SPOTIFY_NODE_POSITIONS.OBJ, end: SPOTIFY_NODE_POSITIONS.CDN, color: '#c084fc' },
+  { start: SPOTIFY_NODE_POSITIONS.API, end: SPOTIFY_NODE_POSITIONS.LB, color: '#2dd4bf' },
+  { start: SPOTIFY_NODE_POSITIONS.LB, end: SPOTIFY_NODE_POSITIONS.APP, color: '#f472b6' },
+  { start: SPOTIFY_NODE_POSITIONS.APP, end: SPOTIFY_NODE_POSITIONS.DB, color: '#fb923c' },
+  { start: SPOTIFY_NODE_POSITIONS.APP, end: SPOTIFY_NODE_POSITIONS.CACHE, color: '#4ade80' },
+  { start: SPOTIFY_NODE_POSITIONS.APP, end: SPOTIFY_NODE_POSITIONS.QUEUE, color: '#60a5fa' },
+];
+
+const SpotifySystemVisual: React.FC<{
+  build: SpotifyBuildState;
+  opacityTarget: number;
+}> = ({ build, opacityTarget }) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const builtSet = useMemo(() => new Set(build.builtSymbols), [build.builtSymbols]);
+  const activeSegments = SPOTIFY_SEGMENTS.filter(segment => builtSet.has(segment.symbol));
+  const activeNodeSet = new Set(activeSegments.flatMap(segment => segment.nodes));
+  const isEmpty = build.builtSymbols.length === 0;
+
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.18) * 0.06;
+    const targetScale = 0.84 + Math.min(build.builtSymbols.length, 8) * 0.012;
+    groupRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.08);
+  });
+
+  return (
+    <group ref={groupRef} position={[0, 0.02, -0.6]}>
+      <mesh position={[0, 0.1, -0.16]}>
+        <boxGeometry args={[7.35, 4.7, 0.035]} />
+        <meshBasicMaterial color="#03151f" transparent opacity={0.24 * opacityTarget} />
+      </mesh>
+      <mesh position={[-1.65, 1.42, -0.13]}>
+        <boxGeometry args={[3.65, 1.55, 0.035]} />
+        <meshBasicMaterial color="#0e7490" transparent opacity={0.12 * opacityTarget} />
+      </mesh>
+      <mesh position={[0.15, -0.28, -0.13]}>
+        <boxGeometry args={[3.3, 1.4, 0.035]} />
+        <meshBasicMaterial color="#312e81" transparent opacity={0.1 * opacityTarget} />
+      </mesh>
+      <mesh position={[2.45, -0.1, -0.13]}>
+        <boxGeometry args={[1.75, 3.05, 0.035]} />
+        <meshBasicMaterial color="#14532d" transparent opacity={0.08 * opacityTarget} />
+      </mesh>
+
+      {builtSet.has('SCALE') && (
+        <>
+          <DiagramRing ring={{ position: SPOTIFY_NODE_POSITIONS.APP, radius: 1.75, color: '#22c55e', opacity: 0.18, rotation: pos(0, Math.PI / 2, 0), spin: pos(0, 0.004, 0) }} opacityTarget={opacityTarget} />
+          <DiagramRing ring={{ position: SPOTIFY_NODE_POSITIONS.CACHE, radius: 0.84, color: '#4ade80', opacity: 0.24, spin: pos(0, 0, 0.008) }} opacityTarget={opacityTarget} />
+        </>
+      )}
+
+      {SPOTIFY_BLUEPRINT_BEAMS.map((beam, index) => (
+        <ConnectionBeam
+          key={`spotify-blueprint-beam-${index}`}
+          start={beam.start}
+          end={beam.end}
+          color={beam.color}
+          opacity={0.11 * opacityTarget}
+          radius={0.011}
+        />
+      ))}
+
+      {activeSegments.flatMap(segment => segment.beams).map((beam, index) => (
+        <ConnectionBeam
+          key={`spotify-beam-${index}`}
+          start={beam.start}
+          end={beam.end}
+          color={beam.color}
+          opacity={(beam.opacity ?? 0.58) * opacityTarget}
+          radius={beam.radius ?? 0.018}
+        />
+      ))}
+
+      {activeSegments.map((segment, index) => (
+        <FlowPacket
+          key={`spotify-flow-${segment.symbol}`}
+          path={segment.beams[0] ? [segment.beams[0].start, segment.beams[0].end] : []}
+          offset={(index * 0.21) % 1}
+          color={segment.beams[0]?.color ?? '#ffffff'}
+          speed={0.22 + (index % 3) * 0.04}
+          kind={segment.symbol === 'ASYNC' || segment.symbol === 'MEDIA' ? 'box' : 'sphere'}
+          size={0.06}
+          opacityTarget={opacityTarget}
+        />
+      ))}
+
+      {SPOTIFY_BLUEPRINT_NODE_SYMBOLS.map((symbol, index) => (
+        <ComponentNode
+          key={`spotify-node-${symbol}`}
+          component={getComponentData(symbol)}
+          position={SPOTIFY_NODE_POSITIONS[symbol]}
+          opacity={(activeNodeSet.has(symbol) ? 1 : 0.28) * opacityTarget}
+          pulseOffset={index * 0.25}
+        />
+      ))}
+
+      <DiagramLabel
+        label={{
+          text: isEmpty ? 'Blueprint waiting for assembled paths' : `${build.builtSymbols.length} pieces assembled`,
+          position: pos(0, -2.55),
+          color: isEmpty ? '#93c5fd' : '#bbf7d0',
+        }}
+        opacityTarget={opacityTarget}
+      />
+
+      <Html position={[0, 2.65, 0]} center style={{ pointerEvents: 'none' }}>
+        <div
+          className="font-['Space_Grotesk'] text-lg font-semibold text-white"
+          style={{
+            opacity: opacityTarget,
+            textShadow: '0 0 18px rgba(34, 211, 238, 0.9)',
+          }}
+        >
+          Spotify Architecture
+        </div>
+      </Html>
+    </group>
+  );
+};
+
 const SystemVisual: React.FC<{
   symbol: string;
   scaleRef: React.MutableRefObject<number>;
@@ -1368,7 +1578,7 @@ const CollisionBurst: React.FC<{ color: string }> = ({ color }) => {
 }
 
 // --- SCENE CONTENT ---
-const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combinedElement, trackingData }) => {
+const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combinedElement, trackingData, spotifyBuild }) => {
   const leftGroupRef = useRef<THREE.Group>(null);
   const rightGroupRef = useRef<THREE.Group>(null);
   const combinedGroupRef = useRef<THREE.Group>(null);
@@ -1532,10 +1742,17 @@ const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combine
     <>
       <ambientLight intensity={0.5} />
       <directionalLight position={[0, 0, 10]} intensity={1.5} color="#ffffff" />
-      <pointLight position={[10, 10, 10]} intensity={1.5} />
-      <pointLight position={[-10, -10, -5]} intensity={0.5} color="#00ffff" />
-      
-      {showBurst && <CollisionBurst color={combinedElement ? combinedElement.color : '#ffffff'} />}
+	      <pointLight position={[10, 10, 10]} intensity={1.5} />
+	      <pointLight position={[-10, -10, -5]} intensity={0.5} color="#00ffff" />
+
+	      {spotifyBuild?.active && (
+	        <SpotifySystemVisual
+	          build={spotifyBuild}
+	          opacityTarget={combinedElement ? 0.28 : 0.92}
+	        />
+	      )}
+
+	      {showBurst && <CollisionBurst color={combinedElement ? combinedElement.color : '#ffffff'} />}
 
       <group ref={leftGroupRef}>
          {renderElement(leftElement, leftPinchRef, opacities.left, !combinedElement)}

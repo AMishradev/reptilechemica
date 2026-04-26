@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { ElementData, TrackingData, GameState } from "../types";
+import { ElementData, TrackingData, GameState, SpotifyBuildState } from "../types";
 import { ELEMENTS } from "../constants";
 import explosionMeme from "../assets/image.png";
 
@@ -11,6 +11,9 @@ interface UIOverlayProps {
   trackingRef: React.MutableRefObject<TrackingData>;
   labSlots: ElementData[]; // Dashboard slots (8 manually selected)
   labCreatedSlots: ElementData[]; // Lab-created slots (8 auto-discovered)
+  spotifyBuild?: SpotifyBuildState | null;
+  onSpotifyUndo?: () => void;
+  onSpotifySubmit?: () => void;
   isDashboardOpen: boolean;
   onToggleDashboard: () => void;
   savedElements: ElementData[];
@@ -81,6 +84,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
   trackingRef,
   labSlots,
   labCreatedSlots,
+  spotifyBuild,
+  onSpotifyUndo,
+  onSpotifySubmit,
   isDashboardOpen,
   onToggleDashboard,
   savedElements,
@@ -94,6 +100,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
 
   // Combine dashboard slots and lab-created slots for display (max 12 total: 8 dashboard + 4 lab-created)
   const displayElements = [...labSlots, ...labCreatedSlots];
+  const isSpotifyMode = Boolean(spotifyBuild?.active);
+  const spotifyPieceCount = spotifyBuild?.builtSymbols.length ?? 0;
 
   // Helper for font scaling
   const getSymbolScaleClass = (symbol: string, context: 'shelf' | 'system' | 'center') => {
@@ -232,9 +240,10 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
 
         // Apply Hover Styles Direct to DOM
         const el = item as HTMLElement;
-        const isShelfItem = el.id.startsWith("shelf-item-");
-        const isDashboardItem = el.id.startsWith("dashboard-");
-        const isToggle = el.id === "dashboard-toggle";
+	        const isShelfItem = el.id.startsWith("shelf-item-");
+	        const isDashboardItem = el.id.startsWith("dashboard-");
+	        const isToggle = el.id === "dashboard-toggle";
+	        const isSpotifyControl = el.id.startsWith("spotify-");
 
         if (isHovered) {
           el.style.transform = "scale(1.15)";
@@ -244,9 +253,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
             el.style.borderColor = "rgba(0, 255, 255, 0.9)";
             el.style.backgroundColor = "rgba(255, 255, 255, 0.2)";
             el.style.boxShadow = `0 0 20px ${el.dataset.color || "#fff"}`;
-          } else if (isToggle || isDashboardItem) {
-            el.style.boxShadow = "0 0 15px rgba(34,211,238,0.4)";
-          }
+	          } else if (isToggle || isDashboardItem || isSpotifyControl) {
+	            el.style.boxShadow = "0 0 15px rgba(34,211,238,0.4)";
+	          }
         } else {
           // Revert to base styles
           el.style.transform = "scale(1)";
@@ -267,9 +276,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
               el.style.boxShadow = "none";
             }
             el.style.backgroundColor = "rgba(10, 10, 10, 0.7)";
-          } else if (isToggle) {
-            el.style.boxShadow = "none";
-          }
+	          } else if (isToggle || isSpotifyControl) {
+	            el.style.boxShadow = "none";
+	          }
         }
       });
 
@@ -333,7 +342,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
           <div className="flex-1 overflow-visible px-4 flex justify-center max-w-4xl">
             <div className="w-full overflow-x-visible pb-4 no-scrollbar flex justify-center">
               {displayElements.length > 0 ? (
-                <div className="flex gap-4 px-4 min-w-max justify-center items-center">
+	                <div className={`${isSpotifyMode ? "flex flex-wrap gap-3 px-2 max-w-5xl" : "flex gap-4 px-4 min-w-max"} justify-center items-center`}>
                   {displayElements.map((el) => {
                     const isLeft = leftElement.symbol === el.symbol;
                     const isRight = rightElement.symbol === el.symbol;
@@ -346,7 +355,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                         data-color={el.color}
                         className={`
                                     interactable-btn
-                                    w-20 h-20 border-2 rounded-2xl flex flex-col items-center justify-center relative transition-all duration-300 cursor-pointer backdrop-blur-sm
+	                                    ${isSpotifyMode ? "w-16 h-16 rounded-xl" : "w-20 h-20 rounded-2xl"} border-2 flex flex-col items-center justify-center relative transition-all duration-300 cursor-pointer backdrop-blur-sm
                                     ${
                                       isLeft
                                         ? "border-cyan-400 bg-cyan-900/30"
@@ -410,20 +419,80 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
         </div>
 
         {/* --- COLLECTION BUTTON (BOTTOM LEFT) --- */}
-        <div className="absolute bottom-10 left-10 pointer-events-auto z-40">
-          <div
-            id="dashboard-toggle"
-            onClick={onToggleDashboard}
-            className="interactable-btn flex items-center gap-3 bg-black/50 backdrop-blur-md border border-cyan-500/30 text-cyan-400 px-4 py-3 rounded-xl cursor-pointer hover:bg-cyan-900/20 transition-all"
-          >
-            <DashboardIcon />
-            <span className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal">
-              COLLECTION
-            </span>
-          </div>
-        </div>
+	        <div className="absolute bottom-10 left-10 pointer-events-auto z-40">
+	          {!isSpotifyMode && (
+	            <div
+	              id="dashboard-toggle"
+	              onClick={onToggleDashboard}
+	              className="interactable-btn flex items-center gap-3 bg-black/50 backdrop-blur-md border border-cyan-500/30 text-cyan-400 px-4 py-3 rounded-xl cursor-pointer hover:bg-cyan-900/20 transition-all"
+	            >
+	              <DashboardIcon />
+	              <span className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal">
+	                COLLECTION
+	              </span>
+	            </div>
+	          )}
+	        </div>
 
-        {/* --- BOTTOM HUD --- */}
+	        {isSpotifyMode && spotifyBuild && (
+	          <div className="absolute bottom-8 left-1/2 z-40 w-[min(92vw,760px)] -translate-x-1/2 pointer-events-auto">
+	            <div className="border border-cyan-400/30 bg-black/70 backdrop-blur-md px-4 py-3 shadow-[0_0_28px_rgba(34,211,238,0.12)]">
+	              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+	                <div>
+	                  <div className="font-['Space_Grotesk'] text-sm font-semibold text-white">
+	                    Design Spotify
+	                  </div>
+		                  <div className="mt-1 font-mono text-[11px] text-cyan-100/70">
+		                    {spotifyPieceCount} pieces assembled
+		                  </div>
+		                </div>
+		                <div className="hidden flex-1 flex-wrap gap-2 md:flex">
+		                  {spotifyBuild.builtSymbols.length > 0 ? (
+		                    spotifyBuild.builtSymbols.slice(-5).map(symbol => (
+		                      <span
+		                        key={symbol}
+		                        className="rounded-full border border-emerald-400/50 bg-emerald-400/15 px-2 py-1 font-mono text-[10px] text-emerald-200"
+		                      >
+		                        {symbol}
+		                      </span>
+		                    ))
+		                  ) : (
+		                    <span className="font-mono text-[11px] text-white/45">
+		                      Snap components together to light up the architecture.
+		                    </span>
+		                  )}
+		                </div>
+	                <div className="flex gap-2">
+	                  <button
+	                    id="spotify-undo"
+	                    type="button"
+	                    onClick={onSpotifyUndo}
+	                    className="interactable-btn rounded-md border border-white/20 bg-white/10 px-3 py-2 font-mono text-xs font-semibold text-white transition-colors hover:bg-white/15"
+	                  >
+	                    Undo
+	                  </button>
+	                  <button
+	                    id="spotify-submit"
+	                    type="button"
+	                    onClick={onSpotifySubmit}
+	                    className="interactable-btn rounded-md border border-emerald-300/40 bg-emerald-400/15 px-3 py-2 font-mono text-xs font-semibold text-emerald-100 transition-colors hover:bg-emerald-400/25"
+	                  >
+	                    Submit
+	                  </button>
+		                  <button
+		                    id="spotify-stop"
+		                    type="button"
+		                    className="interactable-btn rounded-md border border-red-300/40 bg-red-400/10 px-3 py-2 font-mono text-xs font-semibold text-red-100 transition-colors hover:bg-red-400/20"
+		                  >
+		                    Stop
+		                  </button>
+	                </div>
+	              </div>
+	            </div>
+	          </div>
+	        )}
+
+	        {/* --- BOTTOM HUD --- */}
         <div className="p-6 md:p-10 flex flex-col justify-end pointer-events-none">
           {/* Center Message */}
           {combinedElement && combinedElement.symbol !== 'BOOM' && (
@@ -437,9 +506,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
               <div className="mt-6 text-2xl font-mono text-white tracking-normal font-semibold text-shadow">
                 {combinedElement.name}
               </div>
-              <div className="mt-4 text-xs font-mono text-cyan-300 animate-pulse">
-                Close fist to save element
-              </div>
+	              <div className="mt-4 text-xs font-mono text-cyan-300 animate-pulse">
+	                {isSpotifyMode ? "Piece added to Spotify system" : "Close fist to save element"}
+	              </div>
             </div>
           )}
 

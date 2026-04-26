@@ -12,9 +12,10 @@ interface DashboardProps {
   savedElements: ElementData[];
   labSlots: ElementData[];
   onStartQuiz: (difficulty: 'easy' | 'medium') => void;
+  onStartSpotify: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, labSlots, onStartQuiz }) => {
+const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, labSlots, onStartQuiz, onStartSpotify }) => {
   const [allDiscoverables, setAllDiscoverables] = useState<ElementData[]>([]);
   const [selectedInfo, setSelectedInfo] = useState<ElementData | null>(null);
   const [selectedSlots, setSelectedSlots] = useState<ElementData[]>([]);
@@ -281,9 +282,23 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
                     >
                         <div className="text-[10px] text-purple-200 font-mono">MEDIUM</div>
                         <div className="text-sm font-bold text-white">Scale Service</div>
-                    </button>
-                </div>
-             </div>
+	                    </button>
+	                </div>
+	                <button
+	                    onClick={() => {
+	                      playClickSound();
+	                      onStartSpotify();
+	                    }}
+	                    className="interactable-btn mt-3 w-full bg-cyan-900/30 hover:bg-cyan-800/50 border border-cyan-400/50 rounded-lg py-3 px-3 text-left transition-all"
+	                    id="dashboard-spotify"
+	                >
+	                    <div className="text-[10px] text-cyan-200 font-mono">CHALLENGE</div>
+	                    <div className="text-sm font-bold text-white">Design Spotify</div>
+	                    <div className="mt-1 text-[11px] text-cyan-100/60 font-mono">
+	                      Build a streaming platform, then submit your architecture.
+	                    </div>
+	                </button>
+	             </div>
 
              {/* Slot Management Panel */}
              <div className="bg-gradient-to-b from-cyan-900/20 to-black/40 border border-cyan-500/30 rounded-2xl p-4">
