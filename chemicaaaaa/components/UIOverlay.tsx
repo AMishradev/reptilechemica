@@ -437,7 +437,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
               <div className="mt-6 text-2xl font-mono text-white tracking-normal font-semibold text-shadow">
                 {combinedElement.name}
               </div>
-              <div className="mt-4 text-xs font-mono text-cyan-300 animate-pulse">
+              <div className="mt-20 text-xs font-mono text-cyan-300 animate-pulse">
                 Close fist to save component
               </div>
             </div>
