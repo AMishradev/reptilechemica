@@ -3,6 +3,7 @@ from uuid import uuid4
 import os
 
 from dotenv import load_dotenv
+from openai import OpenAI
 from uagents import Agent, Context, Protocol
 from uagents_core.contrib.protocols.chat import (
     ChatAcknowledgement,
@@ -13,6 +14,11 @@ from uagents_core.contrib.protocols.chat import (
 )
 
 load_dotenv()
+
+client = OpenAI(
+    base_url="https://api.asi1.ai/v1",
+    api_key=os.getenv("ASI_API_KEY"),
+)
 
 agent = Agent(
     name=os.getenv("AGENT_NAME", "reptile-chemica"),
