@@ -478,13 +478,13 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
             {!combinedElement && (
               <div className="mt-6 flex gap-8 justify-center text-[9px] text-white/40 font-mono tracking-normal">
                 <span className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-cyan-400"></div>Hover Select
+                  <div className="w-1 h-1 bg-cyan-400"></div>Point Select
                 </span>
                 <span className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-white"></div>Snap Fuse
+                  <div className="w-1 h-1 bg-white"></div>Hands Together
                 </span>
                 <span className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-red-500"></div>Spin Reset
+                  <div className="w-1 h-1 bg-red-500"></div>Circle Reset
                 </span>
               </div>
             )}

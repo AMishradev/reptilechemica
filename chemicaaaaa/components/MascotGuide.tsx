@@ -102,7 +102,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     {
       id: 'intro',
       role: 'assistant',
-      content: 'Atomis online. Ask me about networking or system design.',
+      content: 'Reptile Chemica online. Ask me about networking or system design.',
     },
   ]);
   
@@ -235,7 +235,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
       lastUpdateRef.current = Date.now();
     } catch (error) {
       console.error('Agentverse mascot chat failed:', error);
-      const fallback = 'I cannot reach the Atomis brain yet. Check ASI_API_KEY, then restart the dev server.';
+      const fallback = 'I cannot reach the Reptile Chemica brain yet. Check ASI_API_KEY, then restart the dev server.';
       setChatMessages(current => [
         ...current,
         {
@@ -443,17 +443,17 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end pointer-events-none overflow-visible ">
+    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[300] flex flex-col items-end pointer-events-none overflow-visible ">
        {isChatOpen ? (
-        <div className="mb-3 w-[min(22rem,calc(100vw-2rem))] max-h-[min(30rem,calc(100vh-11rem))] pointer-events-auto rounded-2xl border border-cyan-400/35 bg-[#031014]/95 shadow-[0_0_32px_rgba(34,211,238,0.24)] backdrop-blur-xl overflow-hidden">
+        <div className="relative z-[310] mb-3 w-[min(22rem,calc(100vw-2rem))] max-h-[min(30rem,calc(100vh-11rem))] pointer-events-auto rounded-2xl border border-cyan-400/35 bg-[#031014] shadow-[0_0_32px_rgba(34,211,238,0.24)] overflow-hidden">
           <div className="flex items-center justify-between border-b border-cyan-400/20 px-4 py-3">
             <div>
-              <div className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100">Atomis</div>
+              <div className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100">Reptile Chemica</div>
               <div className="font-mono text-[10px] text-cyan-200/60">Agentverse brain</div>
             </div>
             <button
               type="button"
-              aria-label="Close Atomis chat"
+              aria-label="Close Reptile Chemica chat"
               onClick={() => setIsChatOpen(false)}
               className="h-8 w-8 rounded-full border border-white/10 bg-white/5 font-mono text-sm text-cyan-100 transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
             >
@@ -471,7 +471,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
                   className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 font-mono text-xs leading-relaxed ${
                     item.role === 'user'
                       ? 'rounded-br-sm bg-cyan-300 text-black'
-                      : 'rounded-bl-sm border border-cyan-400/20 bg-white/10 text-cyan-50'
+                      : 'rounded-bl-sm border border-cyan-400/20 bg-[#1c2b2f] text-cyan-50'
                   }`}
                 >
                   {item.content}
@@ -480,7 +480,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
             ))}
             {isChatLoading && (
               <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-sm border border-cyan-400/20 bg-white/10 px-3 py-2 font-mono text-xs text-cyan-100">
+                <div className="rounded-2xl rounded-bl-sm border border-cyan-400/20 bg-[#1c2b2f] px-3 py-2 font-mono text-xs text-cyan-100">
                   Thinking...
                 </div>
               </div>
@@ -520,7 +520,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
            {/* Container */}
            <button
              type="button"
-             aria-label={isChatOpen ? 'Close Atomis chat' : 'Open Atomis chat'}
+             aria-label={isChatOpen ? 'Close Reptile Chemica chat' : 'Open Reptile Chemica chat'}
              onClick={() => setIsChatOpen(current => !current)}
              className="w-full h-full relative z-10 pointer-events-auto cursor-pointer rounded-full bg-transparent p-0 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
            >

@@ -22,7 +22,7 @@ from uagents_core.contrib.protocols.chat import (
 load_dotenv()
 
 SYSTEM_PROMPT = (
-    "You are Atomis, the Reptile Chemica lab guide. You only answer questions "
+    "You are Reptile Chemica, the Reptile Chemica lab guide. You only answer questions "
     "about the Reptile Chemica system-design lab, computer networking, "
     "distributed systems, cloud architecture, and system design. Keep answers "
     "under 90 words, friendly, direct, and plain text with no emoji, markdown, "
