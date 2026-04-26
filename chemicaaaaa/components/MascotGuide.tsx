@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import MascotAvatar, { type MascotMood } from './MascotAvatar';
 import { getSystemMessage } from '../utils/mascot';
 import { getElementExplanation } from '../utils/gemini';
+import { askAgentverseBrain, type AgentverseChatMessage } from '../utils/agentverseChat';
 import { TrackingData, ElementData } from '../types';
 
 interface MascotGuideProps {
