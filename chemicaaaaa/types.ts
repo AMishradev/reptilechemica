@@ -38,3 +38,9 @@ export interface TrackingData {
   cameraAspect: number; // Width / Height
   hoveredElement?: string; // Symbol of element being hovered
 }
+
+export interface SpotifyBuildState {
+  active: boolean;
+  builtSymbols: string[];
+  targetPieceCount: number;
+}
