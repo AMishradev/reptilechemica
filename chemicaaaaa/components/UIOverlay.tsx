@@ -17,15 +17,20 @@ interface UIOverlayProps {
   onSpotifyStop?: () => void;
   roomId?: string | null;
   isMultiplayer?: boolean;
+  isCoBuildDemo?: boolean;
   isMultiplayerUnavailable?: boolean;
   multiplayerPeerCount?: number;
   coBuildNotice?: string | null;
   coBuildJoinCode?: string;
+  coBuildTimerLabel?: string | null;
+  coBuildTimerProgress?: number;
+  isCoBuildTimerExpired?: boolean;
   onCoBuildJoinCodeChange?: (value: string) => void;
   onStartCoBuild?: () => void;
   onJoinCoBuild?: () => void;
   onCopyRoomLink?: () => void;
   onLeaveCoBuild?: () => void;
+  onResetCoBuildTimer?: () => void;
   isDashboardOpen: boolean;
   onToggleDashboard: () => void;
   savedElements: ElementData[];
@@ -102,15 +107,20 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
   onSpotifyStop,
   roomId,
   isMultiplayer = false,
+  isCoBuildDemo = false,
   isMultiplayerUnavailable = false,
   multiplayerPeerCount = 0,
   coBuildNotice,
   coBuildJoinCode = "",
+  coBuildTimerLabel,
+  coBuildTimerProgress = 0,
+  isCoBuildTimerExpired = false,
   onCoBuildJoinCodeChange,
   onStartCoBuild,
   onJoinCoBuild,
   onCopyRoomLink,
   onLeaveCoBuild,
+  onResetCoBuildTimer,
   isDashboardOpen,
   onToggleDashboard,
   savedElements,
@@ -126,6 +136,52 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
   const displayElements = [...labSlots, ...labCreatedSlots];
   const isSpotifyMode = Boolean(spotifyBuild?.active);
   const spotifyPieceCount = spotifyBuild?.builtSymbols.length ?? 0;
+  const demoPeerSteps = [
+    {
+      left: "API",
+      right: "CACHE",
+      result: "FAST",
+      status: "Caching service path",
+      x: "72%",
+      y: "36%",
+    },
+    {
+      left: "QUEUE",
+      right: "WORKER",
+      result: "ASYNC",
+      status: "Moving jobs off request path",
+      x: "34%",
+      y: "64%",
+    },
+    {
+      left: "CDN",
+      right: "OBJ",
+      result: "MEDIA",
+      status: "Wiring media delivery",
+      x: "58%",
+      y: "48%",
+    },
+    {
+      left: "LB",
+      right: "APP",
+      result: "SCALE",
+      status: "Balancing app traffic",
+      x: "46%",
+      y: "28%",
+    },
+  ];
+  const [demoPeerStepIndex, setDemoPeerStepIndex] = useState(0);
+  const demoPeerStep = demoPeerSteps[demoPeerStepIndex % demoPeerSteps.length];
+
+  useEffect(() => {
+    if (!isCoBuildDemo) return;
+
+    const timer = window.setInterval(() => {
+      setDemoPeerStepIndex(index => index + 1);
+    }, 2200);
+
+    return () => window.clearInterval(timer);
+  }, [isCoBuildDemo]);
 
   // Helper for font scaling
   const getSymbolScaleClass = (symbol: string, context: 'shelf' | 'system' | 'center') => {
@@ -444,6 +500,84 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
           </div>
         </div>
 
+        {isMultiplayer && coBuildTimerLabel && (
+          <div className="absolute left-1/2 top-28 z-40 w-[min(90vw,22rem)] -translate-x-1/2 pointer-events-auto">
+            <div className={`rounded-lg border bg-black/70 px-4 py-3 shadow-[0_0_24px_rgba(34,211,238,0.14)] backdrop-blur-md ${
+              isCoBuildTimerExpired
+                ? "border-red-400/45 text-red-100"
+                : "border-emerald-400/35 text-emerald-100"
+            }`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-mono text-[10px] uppercase tracking-normal text-white/45">
+                    Co-build timer
+                  </div>
+                  <div className="font-['Space_Grotesk'] text-3xl font-semibold leading-none">
+                    {coBuildTimerLabel}
+                  </div>
+                </div>
+                <button
+                  id="co-build-reset-timer"
+                  type="button"
+                  onClick={onResetCoBuildTimer}
+                  className="interactable-btn shrink-0 rounded-md border border-white/15 bg-white/10 px-3 py-2 font-mono text-xs font-semibold text-white/75 transition-colors hover:bg-white/15"
+                >
+                  Reset
+                </button>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    isCoBuildTimerExpired ? "bg-red-300" : "bg-emerald-300"
+                  }`}
+                  style={{ width: `${Math.round(coBuildTimerProgress * 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isCoBuildDemo && (
+          <div
+            className="absolute right-4 top-32 z-40 w-[min(18rem,34vw)] overflow-hidden rounded-lg border border-emerald-300/40 bg-black/80 shadow-[0_0_24px_rgba(74,222,128,0.16)] backdrop-blur-md max-md:top-44 max-md:w-[min(13rem,42vw)]"
+            data-vision-ignore="true"
+          >
+            <div className="flex items-center justify-between gap-2 px-3 py-2 font-mono text-[10px] uppercase tracking-normal">
+              <span className="truncate text-emerald-200">Builder 27</span>
+              <span className="shrink-0 text-white/45">Demo screen</span>
+            </div>
+            <div className="relative aspect-video overflow-hidden border-y border-white/10 bg-[#031014]">
+              <div className="absolute inset-3 grid grid-cols-[1fr_0.8fr_1fr] items-center gap-2">
+                <div className="rounded-md border border-cyan-300/45 bg-cyan-300/10 p-2 text-center">
+                  <div className="font-['Space_Grotesk'] text-lg font-semibold text-cyan-100">
+                    {demoPeerStep.left}
+                  </div>
+                  <div className="mt-1 font-mono text-[8px] text-cyan-100/55">LEFT</div>
+                </div>
+                <div className="text-center">
+                  <div className="mx-auto h-8 w-8 rounded-full border border-emerald-300/70 bg-emerald-300/20 shadow-[0_0_18px_rgba(74,222,128,0.45)]" />
+                  <div className="mt-1 font-mono text-[9px] text-emerald-100">
+                    {demoPeerStep.result}
+                  </div>
+                </div>
+                <div className="rounded-md border border-purple-300/45 bg-purple-300/10 p-2 text-center">
+                  <div className="font-['Space_Grotesk'] text-lg font-semibold text-purple-100">
+                    {demoPeerStep.right}
+                  </div>
+                  <div className="mt-1 font-mono text-[8px] text-purple-100/55">RIGHT</div>
+                </div>
+              </div>
+              <div
+                className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-emerald-200 bg-black/70 shadow-[0_0_14px_rgba(74,222,128,0.75)] transition-all duration-700"
+                style={{ left: demoPeerStep.x, top: demoPeerStep.y }}
+              />
+            </div>
+            <div className="px-3 py-2 font-mono text-[10px] text-cyan-100/72">
+              {demoPeerStep.status}
+            </div>
+          </div>
+        )}
+
         {/* --- COLLECTION + CO-BUILD BUTTONS (BOTTOM LEFT) --- */}
         <div className="absolute bottom-16 left-10 pointer-events-auto z-40 flex flex-wrap items-end gap-3">
           {!isSpotifyMode && (
@@ -529,6 +663,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
             {isMultiplayer && (
               <div className="font-mono text-[10px] text-emerald-100/65">
                 {multiplayerPeerCount + 1} builder{multiplayerPeerCount === 0 ? "" : "s"} connected
+                {isCoBuildDemo ? " // demo" : ""}
               </div>
             )}
           </div>

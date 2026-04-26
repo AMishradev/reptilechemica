@@ -50,9 +50,20 @@ export interface MultiplayerCursor {
   y: number;
 }
 
+export interface MultiplayerScreenSnapshot {
+  imageDataUrl: string;
+  width: number;
+  height: number;
+  updatedAt: number;
+  message: string;
+  leftSymbol: string | null;
+  rightSymbol: string | null;
+}
+
 export interface MultiplayerPresence {
   cursor: MultiplayerCursor | null;
   selectedSymbol: string | null;
+  screen: MultiplayerScreenSnapshot | null;
   color: string;
   label: string;
 }
@@ -65,11 +76,14 @@ export interface MultiplayerLabState {
   labSlotSymbols: string[];
   labCreatedSlotSymbols: string[];
   spotifyBuild: SpotifyBuildState;
+  timerStartedAt: number | null;
+  timerDurationMs: number;
 }
 
 export interface MultiplayerPeer {
   connectionId: number;
-  cursor: MultiplayerCursor;
+  cursor: MultiplayerCursor | null;
+  screen: MultiplayerScreenSnapshot | null;
   color: string;
   label: string;
   selectedSymbol: string | null;
@@ -81,6 +95,7 @@ export interface MultiplayerSession {
   peers: MultiplayerPeer[];
   updateState: (patch: Partial<MultiplayerLabState>) => void;
   updateSelectedSymbol: (symbol: string | null) => void;
+  updateScreenSnapshot: (snapshot: MultiplayerScreenSnapshot | null) => void;
   onPointerMove: (event: { clientX: number; clientY: number }) => void;
   onPointerLeave: () => void;
 }

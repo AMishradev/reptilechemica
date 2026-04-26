@@ -37,7 +37,17 @@ export const buildLabVisionState = ({
   dashboardOpen,
 });
 
-export async function captureLabScreenshot() {
+interface CaptureLabScreenshotOptions {
+  scale?: number;
+  maxWidth?: number;
+  quality?: number;
+}
+
+export async function captureLabScreenshot({
+  scale = 0.45,
+  maxWidth = 960,
+  quality = 0.62,
+}: CaptureLabScreenshotOptions = {}) {
   const target = document.getElementById('reptile-chemica-lab') ?? document.body;
   const ignoredNodes = Array.from(
     document.querySelectorAll<HTMLElement>('[data-vision-ignore="true"]')
@@ -58,11 +68,10 @@ export async function captureLabScreenshot() {
       backgroundColor: '#020607',
       ignoreElements: element => element.getAttribute('data-vision-ignore') === 'true',
       logging: false,
-      scale: 0.45,
+      scale,
       useCORS: true,
     });
     const compactCanvas = document.createElement('canvas');
-    const maxWidth = 960;
     const ratio = Math.min(1, maxWidth / canvas.width);
     compactCanvas.width = Math.round(canvas.width * ratio);
     compactCanvas.height = Math.round(canvas.height * ratio);
@@ -70,7 +79,7 @@ export async function captureLabScreenshot() {
       .getContext('2d')
       ?.drawImage(canvas, 0, 0, compactCanvas.width, compactCanvas.height);
 
-    return compactCanvas.toDataURL('image/jpeg', 0.62);
+    return compactCanvas.toDataURL('image/jpeg', quality);
   } finally {
     ignoredNodes.forEach((node, index) => {
       node.style.visibility = previousVisibility[index];

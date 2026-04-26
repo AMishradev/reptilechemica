@@ -4,6 +4,7 @@ import { ElementData, MultiplayerLabState, SpotifyBuildState } from "../types";
 export const MULTIPLAYER_ROOM_PARAM = "room";
 export const MULTIPLAYER_ROOM_PREFIX = "reptile-systems";
 export const LIVEBLOCKS_PUBLIC_KEY = import.meta.env.VITE_LIVEBLOCKS_PUBLIC_KEY || "";
+export const CO_BUILD_TIMER_DURATION_MS = 5 * 60 * 1000;
 
 const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -21,6 +22,8 @@ export const createInitialMultiplayerLabState = (): MultiplayerLabState => ({
   labSlotSymbols: [],
   labCreatedSlotSymbols: [],
   spotifyBuild: createInactiveSpotifyBuild(),
+  timerStartedAt: Date.now(),
+  timerDurationMs: CO_BUILD_TIMER_DURATION_MS,
 });
 
 export const createRoomCode = () =>
@@ -72,7 +75,9 @@ export const sameMultiplayerLabState = (left: MultiplayerLabState, right: Multip
   left.message === right.message &&
   sameSymbolList(left.labSlotSymbols, right.labSlotSymbols) &&
   sameSymbolList(left.labCreatedSlotSymbols, right.labCreatedSlotSymbols) &&
-  sameSpotifyBuild(left.spotifyBuild, right.spotifyBuild);
+  sameSpotifyBuild(left.spotifyBuild, right.spotifyBuild) &&
+  left.timerStartedAt === right.timerStartedAt &&
+  left.timerDurationMs === right.timerDurationMs;
 
 export async function copyText(text: string) {
   if (navigator.clipboard?.writeText) {

@@ -20,6 +20,7 @@ import {
   MultiplayerLabState,
   MultiplayerPeer,
   MultiplayerPresence,
+  MultiplayerScreenSnapshot,
 } from "../types";
 
 interface MultiplayerGateProps {
@@ -34,6 +35,7 @@ const createPresence = (): MultiplayerPresence => {
   return {
     cursor: null,
     selectedSymbol: null,
+    screen: null,
     color,
     label: `Builder ${Math.floor(Math.random() * 90) + 10}`,
   };
@@ -48,28 +50,78 @@ const loadingFallback = (
 );
 
 const MultiplayerCursorLayer: React.FC<{ peers: MultiplayerPeer[] }> = ({ peers }) => (
-  <div className="pointer-events-none fixed inset-0 z-[500]">
-    {peers.map((peer) => (
-      <div
-        key={peer.connectionId}
-        className="absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2"
-        style={{ left: peer.cursor.x, top: peer.cursor.y }}
-      >
+  <div className="pointer-events-none fixed inset-0 z-[500]" data-vision-ignore="true">
+    {peers.map((peer) => {
+      if (!peer.cursor) return null;
+
+      return (
         <div
-          className="h-5 w-5 rounded-full border-2 bg-black/50 shadow-[0_0_18px_currentColor]"
-          style={{ color: peer.color, borderColor: peer.color }}
-        />
-        <div
-          className="mt-1 whitespace-nowrap rounded bg-black/80 px-2 py-1 font-mono text-[10px] text-white shadow-lg"
-          style={{ border: `1px solid ${peer.color}88` }}
+          key={peer.connectionId}
+          className="absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2"
+          style={{ left: peer.cursor.x, top: peer.cursor.y }}
         >
-          {peer.label}
-          {peer.selectedSymbol ? ` // ${peer.selectedSymbol}` : ""}
+          <div
+            className="h-5 w-5 rounded-full border-2 bg-black/50 shadow-[0_0_18px_currentColor]"
+            style={{ color: peer.color, borderColor: peer.color }}
+          />
+          <div
+            className="mt-1 whitespace-nowrap rounded bg-black/80 px-2 py-1 font-mono text-[10px] text-white shadow-lg"
+            style={{ border: `1px solid ${peer.color}88` }}
+          >
+            {peer.label}
+            {peer.selectedSymbol ? ` // ${peer.selectedSymbol}` : ""}
+          </div>
         </div>
-      </div>
-    ))}
+      );
+    })}
   </div>
 );
+
+const MultiplayerScreenLayer: React.FC<{ peers: MultiplayerPeer[] }> = ({ peers }) => {
+  const screens = peers.filter((peer) => Boolean(peer.screen?.imageDataUrl)).slice(0, 2);
+
+  if (screens.length === 0) return null;
+
+  return (
+    <div
+      className="pointer-events-none fixed right-4 top-32 z-[260] flex w-[min(18rem,34vw)] flex-col gap-3 max-md:top-24 max-md:w-[min(13rem,42vw)]"
+      data-vision-ignore="true"
+    >
+      {screens.map((peer) => {
+        const screen = peer.screen as MultiplayerScreenSnapshot;
+
+        return (
+          <div
+            key={peer.connectionId}
+            className="overflow-hidden rounded-lg border bg-black/78 shadow-[0_0_24px_rgba(34,211,238,0.18)] backdrop-blur-md"
+            style={{ borderColor: `${peer.color}77` }}
+          >
+            <div className="flex items-center justify-between gap-2 px-3 py-2 font-mono text-[10px] uppercase tracking-normal text-white/80">
+              <span className="truncate" style={{ color: peer.color }}>
+                {peer.label}
+              </span>
+              <span className="shrink-0 text-emerald-200">Live screen</span>
+            </div>
+            <div className="aspect-video bg-black">
+              <img
+                src={screen.imageDataUrl}
+                alt={`${peer.label} screen`}
+                className="h-full w-full object-cover"
+                draggable={false}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2 px-3 py-2 font-mono text-[10px] text-cyan-100/70">
+              <span className="truncate">{screen.message}</span>
+              <span className="shrink-0 text-white/45">
+                {screen.leftSymbol ?? "--"} + {screen.rightSymbol ?? "--"}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 const MultiplayerLab: React.FC<{ roomId: string }> = ({ roomId }) => {
   const fallbackState = useMemo(() => createInitialMultiplayerLabState(), []);
@@ -84,6 +136,8 @@ const MultiplayerLab: React.FC<{ roomId: string }> = ({ roomId }) => {
       labSlotSymbols: labRoot.labSlotSymbols ?? [],
       labCreatedSlotSymbols: labRoot.labCreatedSlotSymbols ?? [],
       spotifyBuild: labRoot.spotifyBuild ?? fallbackState.spotifyBuild,
+      timerStartedAt: labRoot.timerStartedAt ?? fallbackState.timerStartedAt,
+      timerDurationMs: labRoot.timerDurationMs ?? fallbackState.timerDurationMs,
     };
   });
   const state = storageState ?? fallbackState;
@@ -108,11 +162,12 @@ const MultiplayerLab: React.FC<{ roomId: string }> = ({ roomId }) => {
         .map((other) => {
           const presence = other.presence as unknown as MultiplayerPresence;
 
-          if (!presence.cursor) return null;
+          if (!presence.cursor && !presence.screen) return null;
 
           return {
             connectionId: other.connectionId,
-            cursor: presence.cursor,
+            cursor: presence.cursor ?? null,
+            screen: presence.screen ?? null,
             color: presence.color || "#22d3ee",
             label: presence.label || `Builder ${other.connectionId}`,
             selectedSymbol: presence.selectedSymbol ?? null,
@@ -143,6 +198,13 @@ const MultiplayerLab: React.FC<{ roomId: string }> = ({ roomId }) => {
     [updateMyPresence]
   );
 
+  const updateScreenSnapshot = useCallback(
+    (screen: MultiplayerScreenSnapshot | null) => {
+      updateMyPresence({ screen });
+    },
+    [updateMyPresence]
+  );
+
   const multiplayer = useMemo(
     () => ({
       roomId,
@@ -150,16 +212,18 @@ const MultiplayerLab: React.FC<{ roomId: string }> = ({ roomId }) => {
       peers,
       updateState,
       updateSelectedSymbol,
+      updateScreenSnapshot,
       onPointerMove,
       onPointerLeave,
     }),
-    [roomId, state, peers, updateState, updateSelectedSymbol, onPointerMove, onPointerLeave]
+    [roomId, state, peers, updateState, updateSelectedSymbol, updateScreenSnapshot, onPointerMove, onPointerLeave]
   );
 
   return (
     <div className="relative h-full w-full">
       <App multiplayer={multiplayer} requestedRoomId={roomId} />
       <MultiplayerCursorLayer peers={peers} />
+      <MultiplayerScreenLayer peers={peers} />
     </div>
   );
 };

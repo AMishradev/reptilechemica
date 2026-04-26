@@ -9,6 +9,7 @@ import MascotGuide from './components/MascotGuide';
 import { ELEMENTS, COMBINATIONS } from './constants';
 import { TrackingData, ElementData, GameState, SpotifyBuildState, MultiplayerLabState, MultiplayerSession } from './types';
 import {
+  CO_BUILD_TIMER_DURATION_MS,
   copyText,
   createRoomCode,
   elementsFromSymbols,
@@ -21,6 +22,7 @@ import {
   sameSymbolList,
   symbolsFromElements,
 } from './utils/multiplayer';
+import { captureLabScreenshot } from './utils/labVisionCapture';
 import successChime from './assets/sounds/success-chime.mp3';
 import softError from './assets/sounds/soft-error.mp3';
 
@@ -118,6 +120,13 @@ const createInactiveSpotifyBuild = (): SpotifyBuildState => ({
   targetPieceCount: SPOTIFY_TARGET_PIECE_COUNT,
 });
 
+const formatCoBuildTimer = (remainingMs: number) => {
+  const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+  const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+  const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+  return `${minutes}:${seconds}`;
+};
+
 const App: React.FC<AppProps> = ({ multiplayer, requestedRoomId = null }) => {
   const navigate = useNavigate();
   const [isCameraReady, setIsCameraReady] = useState(false);
@@ -163,12 +172,33 @@ const App: React.FC<AppProps> = ({ multiplayer, requestedRoomId = null }) => {
   const [spotifyBuild, setSpotifyBuild] = useState<SpotifyBuildState>(createInactiveSpotifyBuild);
   const activeSpotifyBuild = spotifyBuild.active ? spotifyBuild : null;
   const isMultiplayer = Boolean(multiplayer);
+  const isCoBuildDemo = Boolean(requestedRoomId && !multiplayer);
+  const isCoBuildRoomMode = isMultiplayer || isCoBuildDemo;
   const coBuildRoomId = multiplayer?.roomId ?? requestedRoomId;
   const [coBuildNotice, setCoBuildNotice] = useState<string | null>(null);
   const [coBuildJoinCode, setCoBuildJoinCode] = useState("");
+  const [demoCoBuildStartedAt, setDemoCoBuildStartedAt] = useState(() => Date.now());
+  const [coBuildTimerNow, setCoBuildTimerNow] = useState(() => Date.now());
   const coBuildNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const multiplayerSyncingRef = useRef(false);
   const multiplayerHydratedRef = useRef(false);
+  const screenSnapshotMetaRef = useRef({
+    message: displayedMessage,
+    leftSymbol: leftElement.symbol,
+    rightSymbol: rightElement.symbol,
+  });
+  const coBuildTimerStartedAt = multiplayer?.state.timerStartedAt ?? (isCoBuildDemo ? demoCoBuildStartedAt : null);
+  const coBuildTimerDurationMs = multiplayer?.state.timerDurationMs ?? CO_BUILD_TIMER_DURATION_MS;
+  const coBuildTimerRemainingMs = isCoBuildRoomMode && coBuildTimerStartedAt
+    ? Math.max(0, coBuildTimerStartedAt + coBuildTimerDurationMs - coBuildTimerNow)
+    : null;
+  const coBuildTimerLabel = coBuildTimerRemainingMs === null
+    ? null
+    : formatCoBuildTimer(coBuildTimerRemainingMs);
+  const coBuildTimerProgress = coBuildTimerRemainingMs === null || coBuildTimerDurationMs <= 0
+    ? 0
+    : Math.max(0, Math.min(1, coBuildTimerRemainingMs / coBuildTimerDurationMs));
+  const updateScreenSnapshot = multiplayer?.updateScreenSnapshot;
 
   // Fallback to prevent infinite loading if camera fails to init
   useEffect(() => {
@@ -194,6 +224,8 @@ const App: React.FC<AppProps> = ({ multiplayer, requestedRoomId = null }) => {
       labSlotSymbols,
       labCreatedSlotSymbols,
       spotifyBuild,
+      timerStartedAt: coBuildTimerStartedAt,
+      timerDurationMs: coBuildTimerDurationMs,
     }),
     [
       leftElement.symbol,
@@ -203,6 +235,8 @@ const App: React.FC<AppProps> = ({ multiplayer, requestedRoomId = null }) => {
       labSlotSymbols,
       labCreatedSlotSymbols,
       spotifyBuild,
+      coBuildTimerStartedAt,
+      coBuildTimerDurationMs,
     ]
   );
 
@@ -308,6 +342,8 @@ const App: React.FC<AppProps> = ({ multiplayer, requestedRoomId = null }) => {
     multiplayer?.state.labSlotSymbols,
     multiplayer?.state.labCreatedSlotSymbols,
     multiplayer?.state.spotifyBuild,
+    multiplayer?.state.timerStartedAt,
+    multiplayer?.state.timerDurationMs,
     leftElement.symbol,
     rightElement.symbol,
     combinedElement?.symbol,
@@ -329,6 +365,73 @@ const App: React.FC<AppProps> = ({ multiplayer, requestedRoomId = null }) => {
     if (!multiplayer) return;
     multiplayer.updateSelectedSymbol(`${leftElement.symbol}+${rightElement.symbol}`);
   }, [leftElement.symbol, rightElement.symbol, multiplayer]);
+
+  useEffect(() => {
+    screenSnapshotMetaRef.current = {
+      message: displayedMessage,
+      leftSymbol: leftElement.symbol,
+      rightSymbol: rightElement.symbol,
+    };
+  }, [displayedMessage, leftElement.symbol, rightElement.symbol]);
+
+  useEffect(() => {
+    if (!isCoBuildRoomMode) return;
+
+    setCoBuildTimerNow(Date.now());
+    const timer = window.setInterval(() => {
+      setCoBuildTimerNow(Date.now());
+    }, 500);
+
+    return () => window.clearInterval(timer);
+  }, [isCoBuildRoomMode]);
+
+  useEffect(() => {
+    if (!updateScreenSnapshot) return;
+
+    let isCancelled = false;
+    let isCapturing = false;
+
+    const publishScreenSnapshot = async () => {
+      if (isCapturing || document.visibilityState === 'hidden') return;
+      if (!document.getElementById('reptile-chemica-lab')) return;
+
+      isCapturing = true;
+      try {
+        const imageDataUrl = await captureLabScreenshot({
+          scale: 0.22,
+          maxWidth: 480,
+          quality: 0.42,
+        });
+
+        if (isCancelled) return;
+
+        const meta = screenSnapshotMetaRef.current;
+        updateScreenSnapshot({
+          imageDataUrl,
+          width: window.innerWidth,
+          height: window.innerHeight,
+          updatedAt: Date.now(),
+          message: meta.message,
+          leftSymbol: meta.leftSymbol,
+          rightSymbol: meta.rightSymbol,
+        });
+      } catch (error) {
+        console.warn('Failed to publish co-build screen snapshot', error);
+      } finally {
+        isCapturing = false;
+      }
+    };
+
+    const firstCapture = window.setTimeout(publishScreenSnapshot, 1200);
+    const captureInterval = window.setInterval(publishScreenSnapshot, 3600);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(firstCapture);
+      window.clearInterval(captureInterval);
+      updateScreenSnapshot(null);
+    };
+  }, [updateScreenSnapshot]);
 
   // Design Warning System
   useEffect(() => {
@@ -496,6 +599,24 @@ const App: React.FC<AppProps> = ({ multiplayer, requestedRoomId = null }) => {
   const leaveCoBuild = useCallback(() => {
     navigate("/play");
   }, [navigate]);
+
+  const resetCoBuildTimer = useCallback(() => {
+    if (!multiplayer) {
+      if (isCoBuildDemo) {
+        setDemoCoBuildStartedAt(Date.now());
+        setCoBuildTimerNow(Date.now());
+        showCoBuildNotice("Demo timer reset");
+      }
+      return;
+    }
+
+    multiplayer.updateState({
+      timerStartedAt: Date.now(),
+      timerDurationMs: CO_BUILD_TIMER_DURATION_MS,
+    });
+    setCoBuildTimerNow(Date.now());
+    showCoBuildNotice("Timer reset");
+  }, [isCoBuildDemo, multiplayer, showCoBuildNotice]);
 
   useEffect(() => {
     return () => {
@@ -1129,16 +1250,21 @@ const App: React.FC<AppProps> = ({ multiplayer, requestedRoomId = null }) => {
                 onSpotifySubmit={submitSpotifyDesign}
                 onSpotifyStop={stopSpotifyChallenge}
                 roomId={coBuildRoomId}
-                isMultiplayer={isMultiplayer}
-                isMultiplayerUnavailable={Boolean(requestedRoomId && !multiplayer)}
-                multiplayerPeerCount={multiplayer?.peers.length ?? 0}
+                isMultiplayer={isCoBuildRoomMode}
+                isCoBuildDemo={isCoBuildDemo}
+                isMultiplayerUnavailable={false}
+                multiplayerPeerCount={isCoBuildDemo ? 1 : (multiplayer?.peers.length ?? 0)}
                 coBuildNotice={coBuildNotice}
                 coBuildJoinCode={coBuildJoinCode}
+                coBuildTimerLabel={coBuildTimerLabel}
+                coBuildTimerProgress={coBuildTimerProgress}
+                isCoBuildTimerExpired={coBuildTimerRemainingMs === 0}
                 onCoBuildJoinCodeChange={setCoBuildJoinCode}
                 onStartCoBuild={startCoBuild}
                 onJoinCoBuild={joinCoBuild}
                 onCopyRoomLink={copyCoBuildLink}
                 onLeaveCoBuild={leaveCoBuild}
+                onResetCoBuildTimer={resetCoBuildTimer}
                 isDashboardOpen={isDashboardOpen}
                 onToggleDashboard={() => setIsDashboardOpen(!isDashboardOpen)}
                 savedElements={savedElements}
