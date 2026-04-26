@@ -386,7 +386,18 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     setIsVisible(!isDashboardOpen);
   }, [isDashboardOpen]);
 
-  const mascotMood = getMascotMood(message, mascotText, combinedElement, isGeminiLoading);
+  useEffect(() => {
+    if (!isChatOpen) return;
+
+    chatScrollRef.current?.scrollTo({
+      top: chatScrollRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [chatMessages, isChatLoading, isChatOpen]);
+
+  const mascotMood = isChatLoading
+    ? 'thinking'
+    : getMascotMood(message, mascotText, combinedElement, isGeminiLoading);
 
   useEffect(() => {
     if (!isVisible) {
