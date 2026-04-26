@@ -59,6 +59,23 @@ const getPerformedMascotText = (text: string, mood: MascotMood, message: string)
   return `[curious] ${text}`;
 };
 
+const shouldSpeakMascotText = (
+  message: string,
+  mascotText: string,
+  combinedElement: ElementData | null
+) => {
+  const context = `${message} ${mascotText}`.toUpperCase();
+  const isSuccessfulMerge =
+    Boolean(combinedElement && combinedElement.symbol !== 'BOOM' && combinedElement.symbol !== 'X') &&
+    context.match(/FUSION SUCCESS|QUIZ SUCCESS|CREATED/);
+  const isFailedMerge = context.match(
+    /FAILED|INCOMPATIBLE|UNSTABLE|WARNING|NO MATCH|TRY AGAIN|BOOM|SYSTEM FAILURE/
+  );
+  const isSaveConfirmation = context.match(/SAVED|ADDED TO YOUR COLLECTION/);
+
+  return Boolean(isSuccessfulMerge || isFailedMerge || isSaveConfirmation);
+};
+
 const cleanChatText = (text: string) =>
   text
     .replace(/\*\*/g, '')
@@ -405,6 +422,10 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
       return;
     }
 
+    if (!shouldSpeakMascotText(message, mascotText, combinedElement)) {
+      return;
+    }
+
     const speakableText = getSpeakableMascotText(mascotText);
     if (!speakableText || speakableText === lastSpokenTextRef.current) return;
 
@@ -415,7 +436,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     }, 450);
 
     return () => clearTimeout(timeoutId);
-  }, [mascotText, isVisible, mascotMood, message]);
+  }, [mascotText, isVisible, mascotMood, message, combinedElement]);
 
   useEffect(() => () => stopMascotSpeech(), []);
 

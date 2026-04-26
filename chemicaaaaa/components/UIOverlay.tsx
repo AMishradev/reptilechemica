@@ -443,8 +443,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
             </div>
           )}
 
-          {/* Futuristic Status Ticker - MOVED UP */}
-          <div className="absolute bottom-44 left-1/2 transform -translate-x-1/2 text-center w-full pointer-events-none">
+          {/* Futuristic Status Ticker */}
+          <div className="absolute bottom-8 md:bottom-10 left-1/2 transform -translate-x-1/2 text-center w-full pointer-events-none">
             <div className="relative inline-block overflow-hidden rounded-md group">
               {/* High-Tech Clip Path Border */}
               <div

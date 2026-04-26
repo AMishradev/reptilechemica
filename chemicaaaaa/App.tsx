@@ -188,39 +188,39 @@ const App: React.FC = () => {
     }
   }, [leftElement, rightElement, gameState, message, quizMode.active]);
 
-  const saveElement = (element: ElementData) => {
+  const addLabCreatedSlot = useCallback((element: ElementData) => {
+      const isCreatedElement = COMBINATIONS.some(c => c.result.symbol === element.symbol);
+      if (!isCreatedElement) return;
+
+      setLabCreatedSlots(prevCreatedSlots => {
+          if (labSlots.find(e => e.symbol === element.symbol)) {
+              return prevCreatedSlots;
+          }
+
+          if (prevCreatedSlots.find(e => e.symbol === element.symbol)) {
+              return prevCreatedSlots;
+          }
+
+          if (prevCreatedSlots.length >= 4) {
+              return prevCreatedSlots;
+          }
+
+          const newCreatedSlots = [...prevCreatedSlots, element];
+          localStorage.setItem('labCreatedSlots', JSON.stringify(newCreatedSlots));
+          return newCreatedSlots;
+      });
+  }, [labSlots]);
+
+  const saveElement = useCallback((element: ElementData) => {
       const history = JSON.parse(localStorage.getItem('chemLabHistory') || '[]');
       if (!history.find((e: ElementData) => e.symbol === element.symbol)) {
           const newHistory = [element, ...history];
           localStorage.setItem('chemLabHistory', JSON.stringify(newHistory));
           setSavedElements(newHistory);
       }
-      
-      // Automatically add to lab-created slots (separate from dashboard slots)
-      // Only if element is not already in dashboard slots or lab-created slots
-      setLabCreatedSlots(prevCreatedSlots => {
-          // Check if element is already in dashboard slots (read from localStorage for current state)
-          const currentDashboardSlots = JSON.parse(localStorage.getItem('labSlots') || '[]');
-          if (currentDashboardSlots.find((e: ElementData) => e.symbol === element.symbol)) {
-              return prevCreatedSlots; // Already in dashboard slots, don't add to created slots
-          }
-          
-          // Check if element is already in lab-created slots
-          if (prevCreatedSlots.find(e => e.symbol === element.symbol)) {
-              return prevCreatedSlots; // Already in created slots, no change
-          }
-          
-          // Check if lab-created slots are full (max 4)
-          if (prevCreatedSlots.length >= 4) {
-              return prevCreatedSlots; // Slots full, can't add
-          }
-          
-          // Add to lab-created slots
-          const newCreatedSlots = [...prevCreatedSlots, element];
-          localStorage.setItem('labCreatedSlots', JSON.stringify(newCreatedSlots));
-          return newCreatedSlots;
-      });
-  };
+
+      addLabCreatedSlot(element);
+  }, [addLabCreatedSlot]);
 
   const startQuiz = useCallback((difficulty: 'easy' | 'medium') => {
       let target = '';
@@ -318,6 +318,7 @@ const App: React.FC = () => {
              // Check if result matches target
              if (combo.result.symbol === quizMode.targetSymbol) {
                  setCombinedElement(combo.result);
+                 addLabCreatedSlot(combo.result);
                  setMessage("QUIZ SUCCESS! RETURNING...");
                  fusionErrorRef.current = false;
                  
@@ -351,6 +352,7 @@ const App: React.FC = () => {
         }
 
         setCombinedElement(combo.result);
+        addLabCreatedSlot(combo.result);
         setMessage(`FUSION SUCCESS: ${combo.result.name}`);
         fusionErrorRef.current = false;
     } else {
@@ -388,7 +390,7 @@ const App: React.FC = () => {
       setMessage("Design Unstable: Incompatible");
       fusionErrorRef.current = true; 
     }
-  }, [leftElement, rightElement, combinedElement, gameState, quizMode]);
+  }, [leftElement, rightElement, combinedElement, gameState, quizMode, addLabCreatedSlot]);
 
   // Play success sound when components are successfully combined
   const prevCombinedElementRef = useRef<ElementData | null>(null);
@@ -661,7 +663,7 @@ const App: React.FC = () => {
         snapFuseArmedRef.current = true;
     }
 
-  }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode]);
+  }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode, saveElement]);
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden select-none">
