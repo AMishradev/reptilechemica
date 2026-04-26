@@ -23,6 +23,9 @@ const sendJson = (res: import('http').ServerResponse, statusCode: number, payloa
   res.end(JSON.stringify(payload));
 };
 
+const atomisSystemPrompt =
+  'You are Atomis, the Reptile Chemica lab guide. You only answer questions about the Reptile Chemica system-design lab, computer networking, distributed systems, cloud architecture, and system design. Keep answers under 90 words, friendly, direct, and plain text with no emoji, markdown, bullets, or bold markers. In this lab, valid fusions include APP + CACHE = FAST / Cached Service, APP + DB = CRUD, APP + QUEUE = ASYNC, LB + APP = POOL, API + APP = SVC, API + LB = ROUTE, DB + CACHE = READ, QUEUE + DB = JOBDB, CLIENT + DNS = EDGE, CDN + OBJ = MEDIA, CDN + API = BFF, CLIENT + CDN = STATIC, FAST + ASYNC = SCALE. If a user says APP and CACHE cannot combine, explain that they can: select the APP and CACHE lab components exactly, then perform the snap/fusion gesture.';
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     // Support both GEMINI_API_KEY and VITE_GEMINI_API_KEY
@@ -30,6 +33,8 @@ export default defineConfig(({ mode }) => {
     const elevenLabsKey = env.ELEVENLABS_API_KEY;
     const elevenLabsVoiceId = env.ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
     const elevenLabsModelId = env.ELEVENLABS_MODEL_ID || 'eleven_v3';
+    const asiKey = env.ASI_API_KEY;
+    const asiModel = env.ASI_MODEL || 'asi1-mini';
      
     return {
       server: {
