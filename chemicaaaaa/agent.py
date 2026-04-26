@@ -57,7 +57,23 @@ async def handle_message(ctx: Context, sender: str, msg: ChatMessage):
     text = "".join(
         item.text for item in msg.content if isinstance(item, TextContent)
     ).strip()
-    response = "Ask me a networking or system design question and I will help."
+    response = "Sorry, something went wrong."
+
+    if not text:
+        response = "Ask me a networking or system design question and I will help."
+    else:
+        try:
+            result = client.chat.completions.create(
+                model=os.getenv("ASI_MODEL", "asi1-mini"),
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": text},
+                ],
+                max_tokens=220,
+            )
+            response = str(result.choices[0].message.content)
+        except Exception as error:
+            ctx.logger.error(f"ASI:One call failed: {error}")
 
     await ctx.send(
         sender,
