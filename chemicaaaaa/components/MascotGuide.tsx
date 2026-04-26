@@ -183,6 +183,57 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     }
   };
 
+  const sendChatMessage = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const content = chatInput.trim();
+    if (!content || isChatLoading) return;
+
+    const userMessage: MascotChatEntry = {
+      id: createChatId(),
+      role: 'user',
+      content,
+    };
+    const nextMessages = [...chatMessages, userMessage];
+    const messagesForAgent = nextMessages
+      .filter(item => item.id !== 'intro')
+      .map(({ role, content }) => ({ role, content }));
+
+    setChatMessages(nextMessages);
+    setChatInput('');
+    setIsChatLoading(true);
+    setMascotText('Thinking through the system shape...');
+    lastUpdateRef.current = Date.now();
+
+    try {
+      const reply = cleanChatText(await askAgentverseBrain(messagesForAgent));
+      const assistantMessage: MascotChatEntry = {
+        id: createChatId(),
+        role: 'assistant',
+        content: reply,
+      };
+
+      setChatMessages(current => [...current, assistantMessage]);
+      setMascotText(reply.slice(0, 360));
+      lastUpdateRef.current = Date.now();
+    } catch (error) {
+      console.error('Agentverse mascot chat failed:', error);
+      const fallback = 'I cannot reach the Atomis brain yet. Check ASI_API_KEY, then restart the dev server.';
+      setChatMessages(current => [
+        ...current,
+        {
+          id: createChatId(),
+          role: 'assistant',
+          content: fallback,
+        },
+      ]);
+      setMascotText(fallback);
+      lastUpdateRef.current = Date.now();
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
   // Handle new component creation - call Gemini API
   useEffect(() => {
     // Only trigger when a new component is successfully created (not errors like BOOM or X)
