@@ -3,11 +3,40 @@ export interface AgentverseChatMessage {
   content: string;
 }
 
-export async function askAgentverseBrain(messages: AgentverseChatMessage[]): Promise<string> {
+export interface LabVisionState {
+  status: string;
+  leftElement?: {
+    symbol: string;
+    name: string;
+  };
+  rightElement?: {
+    symbol: string;
+    name: string;
+  };
+  combinedElement?: {
+    symbol: string;
+    name: string;
+  } | null;
+  shelf: Array<{
+    symbol: string;
+    name: string;
+  }>;
+  dashboardOpen: boolean;
+}
+
+export interface AgentverseBrainContext {
+  labState?: LabVisionState;
+  screenshotDataUrl?: string;
+}
+
+export async function askAgentverseBrain(
+  messages: AgentverseChatMessage[],
+  context?: AgentverseBrainContext
+): Promise<string> {
   const response = await fetch('/api/agentverse-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, ...context }),
   });
   const payload = await response.json().catch(() => null) as { reply?: string; error?: string } | null;
 

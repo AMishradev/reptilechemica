@@ -70,7 +70,7 @@ const ComponentNode: React.FC<{
         <torusGeometry args={[0.62, 0.018, 12, 80]} />
         <meshBasicMaterial color={component.color} transparent opacity={opacity * 0.75} />
       </mesh>
-      <Html position={[0, -0.78, 0]} center style={{ pointerEvents: 'none' }}>
+      <Html position={[0, -0.78, 0]} center wrapperClass="lab-scene-html" style={{ pointerEvents: 'none' }}>
         <div className="flex flex-col items-center font-mono text-center">
           <div
             className="text-sm font-semibold tracking-normal"
@@ -147,7 +147,7 @@ const RouteComponent: React.FC<{
       <ComponentNode component={api} position={[-1.8, 0, 0]} opacity={opacityTarget} pulseOffset={0} />
       <ComponentNode component={lb} position={[1.8, 0, 0]} opacity={opacityTarget} pulseOffset={0.8} />
 
-      <Html position={[0, 1.05, 0]} center style={{ pointerEvents: 'none' }}>
+      <Html position={[0, 1.05, 0]} center wrapperClass="lab-scene-html" style={{ pointerEvents: 'none' }}>
         <div
           className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100"
           style={{
@@ -225,7 +225,7 @@ const EdgeComponent: React.FC<{
       <ComponentNode component={client} position={[0, -1.65, 0]} opacity={opacityTarget} pulseOffset={0.1} />
       <ComponentNode component={dns} position={[0, 1.65, 0]} opacity={opacityTarget} pulseOffset={0.9} />
 
-      <Html position={[1.35, 0, 0]} center style={{ pointerEvents: 'none' }}>
+      <Html position={[1.35, 0, 0]} center wrapperClass="lab-scene-html" style={{ pointerEvents: 'none' }}>
         <div
           className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100"
           style={{
@@ -353,17 +353,17 @@ const WebAppComponent: React.FC<{
       <ComponentNode component={api} position={apiPos} opacity={opacityTarget} pulseOffset={0.9} />
       <ComponentNode component={lb} position={lbPos} opacity={opacityTarget} pulseOffset={1.35} />
 
-      <Html position={[-2.95, 0, 0]} center style={{ pointerEvents: 'none' }}>
+      <Html position={[-2.95, 0, 0]} center wrapperClass="lab-scene-html" style={{ pointerEvents: 'none' }}>
         <div className="font-mono text-[9px] tracking-normal text-cyan-100/70" style={{ opacity: opacityTarget }}>
           Edge Entry
         </div>
       </Html>
-      <Html position={[1.42, 1.25, 0]} center style={{ pointerEvents: 'none' }}>
+      <Html position={[1.42, 1.25, 0]} center wrapperClass="lab-scene-html" style={{ pointerEvents: 'none' }}>
         <div className="font-mono text-[9px] tracking-normal text-emerald-100/70" style={{ opacity: opacityTarget }}>
           Routed Backend
         </div>
       </Html>
-      <Html position={[0, -1.75, 0]} center style={{ pointerEvents: 'none' }}>
+      <Html position={[0, -1.75, 0]} center wrapperClass="lab-scene-html" style={{ pointerEvents: 'none' }}>
         <div
           className="font-['Space_Grotesk'] text-base font-semibold tracking-normal text-white"
           style={{
@@ -504,7 +504,7 @@ const FlowPacket: React.FC<DiagramFlowConfig & { opacityTarget: number }> = ({
 };
 
 const DiagramLabel: React.FC<{ label: DiagramTextConfig; opacityTarget: number }> = ({ label, opacityTarget }) => (
-  <Html position={label.position} center style={{ pointerEvents: 'none' }}>
+  <Html position={label.position} center wrapperClass="lab-scene-html" style={{ pointerEvents: 'none' }}>
     <div
       className="font-mono text-[9px] tracking-normal text-center whitespace-nowrap"
       style={{
@@ -576,7 +576,7 @@ const PresetDiagram: React.FC<{
         <DiagramLabel key={`label-${index}`} label={label} opacityTarget={opacityTarget} />
       ))}
 
-      <Html position={[0, 1.95, 0]} center style={{ pointerEvents: 'none' }}>
+      <Html position={[0, 1.95, 0]} center wrapperClass="lab-scene-html" style={{ pointerEvents: 'none' }}>
         <div
           className="font-['Space_Grotesk'] text-base font-semibold tracking-normal text-white text-center whitespace-nowrap"
           style={{

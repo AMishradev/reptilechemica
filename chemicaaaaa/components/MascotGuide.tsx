@@ -3,6 +3,7 @@ import MascotAvatar, { type MascotMood } from './MascotAvatar';
 import { getSystemMessage } from '../utils/mascot';
 import { getElementExplanation } from '../utils/gemini';
 import { askAgentverseBrain, type AgentverseChatMessage } from '../utils/agentverseChat';
+import { buildLabVisionState, captureLabScreenshot } from '../utils/labVisionCapture';
 import { TrackingData, ElementData } from '../types';
 
 interface MascotGuideProps {
@@ -10,6 +11,10 @@ interface MascotGuideProps {
   isDashboardOpen: boolean;
   trackingData: React.MutableRefObject<TrackingData>;
   combinedElement: ElementData | null; // New component that was just created
+  leftElement: ElementData;
+  rightElement: ElementData;
+  labSlots: ElementData[];
+  labCreatedSlots: ElementData[];
   advice?: string | null;
 }
 
@@ -71,9 +76,12 @@ const shouldSpeakMascotText = (
   const isFailedMerge = context.match(
     /FAILED|INCOMPATIBLE|UNSTABLE|WARNING|NO MATCH|TRY AGAIN|BOOM|SYSTEM FAILURE/
   );
+  const isFailureGuidance = context.match(
+    /PAIRING IS UNSTABLE|NO KNOWN STABLE PAIRING|BRIDGE COMPONENT|FOR [A-Z0-9]+, TRY|TRY [A-Z0-9]+ FOR/
+  );
   const isSaveConfirmation = context.match(/SAVED|ADDED TO YOUR COLLECTION/);
 
-  return Boolean(isSuccessfulMerge || isFailedMerge || isSaveConfirmation);
+  return Boolean(isSuccessfulMerge || isFailedMerge || isFailureGuidance || isSaveConfirmation);
 };
 
 const cleanChatText = (text: string) =>
@@ -91,13 +99,24 @@ interface MascotChatEntry extends AgentverseChatMessage {
 const createChatId = () =>
   crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, trackingData, combinedElement, advice }) => {
+const MascotGuide: React.FC<MascotGuideProps> = ({
+  message,
+  isDashboardOpen,
+  trackingData,
+  combinedElement,
+  leftElement,
+  rightElement,
+  labSlots,
+  labCreatedSlots,
+  advice,
+}) => {
   const [mascotText, setMascotText] = useState("Welcome to the design lab. Pick two components.");
   const [isVisible, setIsVisible] = useState(true);
   const [isGeminiLoading, setIsGeminiLoading] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [speechCaption, setSpeechCaption] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<MascotChatEntry[]>([
     {
       id: 'intro',
@@ -120,9 +139,30 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
   const speechAudioRef = useRef<HTMLAudioElement | null>(null);
   const speechUrlRef = useRef<string | null>(null);
   const lastSpokenTextRef = useRef<string>('');
+  const speechCaptionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const stopMascotSpeech = () => {
+  const clearSpeechCaption = () => {
+    if (speechCaptionTimeoutRef.current) {
+      clearTimeout(speechCaptionTimeoutRef.current);
+      speechCaptionTimeoutRef.current = null;
+    }
+    setSpeechCaption(null);
+  };
+
+  const scheduleSpeechCaptionClear = (text: string) => {
+    if (speechCaptionTimeoutRef.current) {
+      clearTimeout(speechCaptionTimeoutRef.current);
+    }
+
+    const duration = Math.min(9000, Math.max(3200, text.length * 55));
+    speechCaptionTimeoutRef.current = setTimeout(() => {
+      setSpeechCaption(null);
+      speechCaptionTimeoutRef.current = null;
+    }, duration);
+  };
+
+  const stopMascotSpeech = (clearCaption = true) => {
     speechAbortRef.current?.abort();
     speechAbortRef.current = null;
 
@@ -137,6 +177,10 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     }
 
     window.speechSynthesis?.cancel();
+
+    if (clearCaption) {
+      clearSpeechCaption();
+    }
   };
 
   const speakWithBrowserVoice = (text: string) => {
@@ -157,7 +201,9 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
   };
 
   const speakMascotText = async (text: string, performedText: string) => {
-    stopMascotSpeech();
+    stopMascotSpeech(false);
+    setSpeechCaption(text);
+    scheduleSpeechCaptionClear(text);
 
     const controller = new AbortController();
     speechAbortRef.current = controller;
@@ -189,6 +235,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
           URL.revokeObjectURL(audioUrl);
           speechUrlRef.current = null;
           speechAudioRef.current = null;
+          scheduleSpeechCaptionClear(text);
         }
       });
 
@@ -223,7 +270,24 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     lastUpdateRef.current = Date.now();
 
     try {
-      const reply = cleanChatText(await askAgentverseBrain(messagesForAgent));
+      const labState = buildLabVisionState({
+        status: message,
+        leftElement,
+        rightElement,
+        combinedElement,
+        shelf: [...labSlots, ...labCreatedSlots],
+        dashboardOpen: isDashboardOpen,
+      });
+      const screenshotDataUrl = await captureLabScreenshot().catch(error => {
+        console.warn('Lab vision capture failed:', error);
+        return undefined;
+      });
+      const reply = cleanChatText(
+        await askAgentverseBrain(messagesForAgent, {
+          labState,
+          screenshotDataUrl,
+        })
+      );
       const assistantMessage: MascotChatEntry = {
         id: createChatId(),
         role: 'assistant',
@@ -412,6 +476,14 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     });
   }, [chatMessages, isChatLoading, isChatOpen]);
 
+  useEffect(() => {
+    document.body.classList.toggle('reptile-chat-open', isChatOpen);
+
+    return () => {
+      document.body.classList.remove('reptile-chat-open');
+    };
+  }, [isChatOpen]);
+
   const mascotMood = isChatLoading
     ? 'thinking'
     : getMascotMood(message, mascotText, combinedElement, isGeminiLoading);
@@ -443,7 +515,10 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[300] flex flex-col items-end pointer-events-none overflow-visible ">
+    <div
+      data-vision-ignore="true"
+      className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[300] flex flex-col items-end pointer-events-none overflow-visible "
+    >
        {isChatOpen ? (
         <div className="relative z-[310] mb-3 w-[min(22rem,calc(100vw-2rem))] max-h-[min(30rem,calc(100vh-11rem))] pointer-events-auto rounded-2xl border border-cyan-400/35 bg-[#031014] shadow-[0_0_32px_rgba(34,211,238,0.24)] overflow-hidden">
           <div className="flex items-center justify-between border-b border-cyan-400/20 px-4 py-3">
@@ -512,6 +587,12 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
        </div>
        )}
 
+       {isChatOpen && speechCaption && (
+         <div className="mb-2 max-w-xs rounded-xl border border-cyan-400/30 bg-[#031014]/95 px-3 py-2 text-right font-mono text-[11px] leading-relaxed text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.2)]">
+           {speechCaption}
+         </div>
+       )}
+
        {/* 3D Avatar Container */}
        <div className="w-40 h-40 relative group pointer-events-auto overflow-visible">
           {/* Glow Effect */}
@@ -550,7 +631,10 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
            background: rgba(103, 232, 249, 0.48);
            border-radius: 999px;
          }
-       `}</style>
+         body.reptile-chat-open .lab-scene-html {
+           display: none !important;
+         }
+      `}</style>
     </div>
   );
 };

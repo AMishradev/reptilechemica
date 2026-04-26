@@ -3,6 +3,8 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 import { createAsiLabReply, type LabChatMessage } from './utils/asiLabChat';
+import { createOpenRouterVisionContext } from './utils/openRouterVision';
+import type { LabVisionState } from './utils/agentverseChat';
 
 const readRequestBody = (req: import('http').IncomingMessage, maxLength = 10_000) =>
   new Promise<string>((resolve, reject) => {
@@ -34,6 +36,8 @@ export default defineConfig(({ mode }) => {
     const elevenLabsModelId = env.ELEVENLABS_MODEL_ID || 'eleven_v3';
     const asiKey = env.ASI_API_KEY;
     const asiModel = env.ASI_MODEL || 'asi1-mini';
+    const openRouterKey = env.OPENROUTER_API_KEY;
+    const openRouterVisionModel = env.OPENROUTER_VISION_MODEL || 'google/gemma-4-26b-a4b-it';
      
     return {
       server: {
@@ -118,9 +122,11 @@ export default defineConfig(({ mode }) => {
               }
 
               try {
-                const body = JSON.parse(await readRequestBody(req, 30_000)) as {
+                const body = JSON.parse(await readRequestBody(req, 1_500_000)) as {
                   text?: string;
                   messages?: Array<{ role?: string; content?: string }>;
+                  labState?: LabVisionState;
+                  screenshotDataUrl?: string;
                 };
                 const sourceMessages = Array.isArray(body.messages)
                   ? body.messages
@@ -139,13 +145,27 @@ export default defineConfig(({ mode }) => {
                   return;
                 }
 
+                const visionContext = await createOpenRouterVisionContext({
+                  apiKey: openRouterKey,
+                  model: openRouterVisionModel,
+                  labState: body.labState,
+                  screenshotDataUrl: body.screenshotDataUrl,
+                }).catch(error => {
+                  console.error('OpenRouter vision context failed:', error);
+                  return undefined;
+                });
+
                 const { reply, toolUsed, toolResult } = await createAsiLabReply(
                   asiKey,
                   asiModel,
-                  messages
+                  messages,
+                  {
+                    labState: body.labState,
+                    visionContext,
+                  }
                 );
 
-                sendJson(res, 200, { reply, toolUsed, toolResult });
+                sendJson(res, 200, { reply, toolUsed, toolResult, visionUsed: Boolean(visionContext) });
               } catch (error) {
                 console.error('Agentverse chat proxy error:', error);
                 sendJson(res, 500, { error: 'Agentverse chat proxy failed' });

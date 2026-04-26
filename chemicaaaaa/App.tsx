@@ -666,7 +666,7 @@ const App: React.FC = () => {
   }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode, saveElement]);
 
   return (
-    <div className="relative w-full h-full bg-black overflow-hidden select-none">
+    <div id="reptile-chemica-lab" className="relative w-full h-full bg-black overflow-hidden select-none">
       {!visualPreviewElement && !isDashboardOpen && !cameraError && (
         <HandTracker
           key={cameraRetryKey}
@@ -769,6 +769,10 @@ const App: React.FC = () => {
                isDashboardOpen={isDashboardOpen}
                 trackingData={trackingDataRef}
                 combinedElement={displayedCombinedElement}
+                leftElement={leftElement}
+                rightElement={rightElement}
+                labSlots={labSlots}
+                labCreatedSlots={labCreatedSlots}
                 advice={mascotAdvice}
             />
             )}

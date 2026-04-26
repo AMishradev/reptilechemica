@@ -1,14 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 
 import { createAsiLabReply, type LabChatMessage } from '../utils/asiLabChat';
+import { createOpenRouterVisionContext } from '../utils/openRouterVision';
+import type { LabVisionState } from '../utils/agentverseChat';
 
-const readRequestBody = (req: IncomingMessage) =>
+const readRequestBody = (req: IncomingMessage, maxLength = 1_500_000) =>
   new Promise<string>((resolve, reject) => {
     let body = '';
 
     req.on('data', chunk => {
       body += chunk;
-      if (body.length > 30_000) {
+      if (body.length > maxLength) {
         reject(new Error('Request body too large'));
         req.destroy();
       }
@@ -31,6 +33,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   const asiKey = process.env.ASI_API_KEY;
   const asiModel = process.env.ASI_MODEL || 'asi1-mini';
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  const openRouterVisionModel =
+    process.env.OPENROUTER_VISION_MODEL || 'google/gemma-4-26b-a4b-it';
 
   if (!asiKey) {
     sendJson(res, 503, { error: 'ASI_API_KEY is not configured' });
@@ -41,6 +46,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const body = JSON.parse(await readRequestBody(req)) as {
       text?: string;
       messages?: Array<{ role?: string; content?: string }>;
+      labState?: LabVisionState;
+      screenshotDataUrl?: string;
     };
     const sourceMessages = Array.isArray(body.messages)
       ? body.messages
@@ -59,13 +66,27 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return;
     }
 
+    const visionContext = await createOpenRouterVisionContext({
+      apiKey: openRouterKey,
+      model: openRouterVisionModel,
+      labState: body.labState,
+      screenshotDataUrl: body.screenshotDataUrl,
+    }).catch(error => {
+      console.error('OpenRouter vision context failed:', error);
+      return undefined;
+    });
+
     const { reply, toolUsed, toolResult } = await createAsiLabReply(
       asiKey,
       asiModel,
-      messages
+      messages,
+      {
+        labState: body.labState,
+        visionContext,
+      }
     );
 
-    sendJson(res, 200, { reply, toolUsed, toolResult });
+    sendJson(res, 200, { reply, toolUsed, toolResult, visionUsed: Boolean(visionContext) });
   } catch (error) {
     console.error('Agentverse chat API error:', error);
     sendJson(res, 500, { error: 'Agentverse chat API failed' });
