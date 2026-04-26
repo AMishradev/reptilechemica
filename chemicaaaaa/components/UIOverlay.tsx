@@ -47,12 +47,12 @@ const DeathScreen: React.FC<{ reason: string }> = ({ reason }) => {
              <div className="absolute inset-0 z-0 flex items-center justify-center opacity-0 animate-[fadeInDelayed_3s_ease-out_forwards]">
                 <img 
                     src={explosionMeme} 
-                    alt="Explosion Meme" 
+                    alt="Explosion effect"
                     className="max-w-full max-h-full object-contain opacity-60"
                 />
             </div>
-            <h1 className="relative z-10 text-6xl md:text-9xl font-serif text-[#8a0e0e] tracking-widest uppercase scale-110 mb-8 drop-shadow-[0_0_10px_rgba(138,14,14,0.5)]">
-                YOU DIED
+            <h1 className="relative z-10 text-6xl md:text-9xl font-['Space_Grotesk'] font-semibold text-[#8a0e0e] tracking-normal scale-110 mb-8 drop-shadow-[0_0_10px_rgba(138,14,14,0.5)]">
+                System failure
             </h1>
             <div className="relative z-10 max-w-2xl text-center px-4">
                 <p className="text-xl md:text-2xl text-gray-400 font-mono border-t border-b border-gray-800 py-4">
@@ -60,7 +60,7 @@ const DeathScreen: React.FC<{ reason: string }> = ({ reason }) => {
                 </p>
             </div>
             <div className="relative z-10 mt-12 text-sm text-gray-600 animate-pulse">
-                RETURNING TO LAB...
+                Returning to lab...
             </div>
             <style>{`
                 @keyframes fadeInDelayed {
@@ -318,10 +318,10 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
           <div
             className={`text-left transition-all duration-500 ${combinedElement ? "opacity-0 translate-y-10" : "opacity-100"}`}
           >
-            <div className="text-[10px] text-cyan-400 mb-2 font-mono tracking-[0.2em] border-b border-cyan-900 pb-1 inline-block">
-              SYSTEM: LEFT HAND
+            <div className="text-[10px] text-cyan-400 mb-2 font-mono tracking-normal border-b border-cyan-900 pb-1 inline-block">
+              System: Left hand
             </div>
-            <div className={`${getSymbolScaleClass(leftElement.symbol, 'system')} font-['Orbitron'] font-bold text-white drop-shadow-[0_0_20px_rgba(34,211,238,0.6)]`}>
+            <div className={`${getSymbolScaleClass(leftElement.symbol, 'system')} font-['Space_Grotesk'] font-semibold text-white drop-shadow-[0_0_20px_rgba(34,211,238,0.6)]`}>
               {leftElement.symbol}
             </div>
             <div className="text-sm text-cyan-200/70 mt-1 font-mono">
@@ -357,7 +357,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                                 `}
                       >
                         <div
-                          className={`${getSymbolScaleClass(el.symbol, 'shelf')} font-bold font-['Orbitron'] drop-shadow-md`}
+                          className={`${getSymbolScaleClass(el.symbol, 'shelf')} font-semibold font-['Space_Grotesk'] drop-shadow-md`}
                           style={{ color: el.color }}
                         >
                           {el.symbol}
@@ -383,7 +383,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
               ) : (
                 <div className="flex items-center justify-center px-4 py-8 text-center">
                   <div className="text-white/40 font-mono text-sm">
-                    <div className="mb-2">NO COMPONENTS IN SLOTS</div>
+                    <div className="mb-2">No components in slots</div>
                     <div className="text-xs">
                       Open Dashboard to select up to 14 components
                     </div>
@@ -397,10 +397,10 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
           <div
             className={`text-right transition-all duration-500 ${combinedElement ? "opacity-0 translate-y-10" : "opacity-100"}`}
           >
-            <div className="text-[10px] text-purple-400 mb-2 font-mono tracking-[0.2em] border-b border-purple-900 pb-1 inline-block">
-              SYSTEM: RIGHT HAND
+            <div className="text-[10px] text-purple-400 mb-2 font-mono tracking-normal border-b border-purple-900 pb-1 inline-block">
+              System: Right hand
             </div>
-            <div className={`${getSymbolScaleClass(rightElement.symbol, 'system')} font-['Orbitron'] font-bold text-white drop-shadow-[0_0_20px_rgba(168,85,247,0.6)]`}>
+            <div className={`${getSymbolScaleClass(rightElement.symbol, 'system')} font-['Space_Grotesk'] font-semibold text-white drop-shadow-[0_0_20px_rgba(168,85,247,0.6)]`}>
               {rightElement.symbol}
             </div>
             <div className="text-sm text-purple-200/70 mt-1 font-mono">
@@ -417,7 +417,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
             className="interactable-btn flex items-center gap-3 bg-black/50 backdrop-blur-md border border-cyan-500/30 text-cyan-400 px-4 py-3 rounded-xl cursor-pointer hover:bg-cyan-900/20 transition-all"
           >
             <DashboardIcon />
-            <span className="font-['Orbitron'] text-sm font-bold tracking-wider">
+            <span className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal">
               COLLECTION
             </span>
           </div>
@@ -430,15 +430,15 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center w-full pointer-events-none">
               <div className="relative">
                 <div className="absolute inset-0 bg-cyan-500 blur-[100px] opacity-20 rounded-full"></div>
-                <h2 className={`relative ${getSymbolScaleClass(combinedElement.symbol, 'center')} font-['Orbitron'] font-black text-transparent bg-clip-text bg-gradient-to-b from-white to-cyan-300 drop-shadow-[0_0_60px_rgba(0,255,255,0.8)] animate-pulse`}>
+                <h2 className={`relative ${getSymbolScaleClass(combinedElement.symbol, 'center')} font-['Space_Grotesk'] font-bold text-transparent bg-clip-text bg-gradient-to-b from-white to-cyan-300 drop-shadow-[0_0_60px_rgba(0,255,255,0.8)] animate-pulse`}>
                   {combinedElement.symbol}
                 </h2>
               </div>
-              <div className="mt-6 text-2xl font-mono text-white tracking-[0.6em] uppercase font-bold text-shadow">
+              <div className="mt-6 text-2xl font-mono text-white tracking-normal font-semibold text-shadow">
                 {combinedElement.name}
               </div>
               <div className="mt-4 text-xs font-mono text-cyan-300 animate-pulse">
-                CLOSE FIST TO SAVE ELEMENT
+                Close fist to save element
               </div>
             </div>
           )}
@@ -449,7 +449,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
               {/* High-Tech Clip Path Border */}
               <div
                 className={`
-                        relative z-10 px-12 py-5 font-mono tracking-widest uppercase text-sm font-bold bg-black/80 backdrop-blur-xl border-l-4 border-r-4
+                        relative z-10 px-12 py-5 font-mono tracking-normal text-sm font-semibold bg-black/80 backdrop-blur-xl border-l-4 border-r-4
                         ${
                           message.includes("HOLD")
                             ? "border-yellow-500 text-yellow-400"
@@ -468,7 +468,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                     "polygon(10% 0, 100% 0, 100% 80%, 90% 100%, 0 100%, 0 20%)",
                 }}
               >
-                <span className="mr-4 opacity-50 text-xs">STATUS //</span>
+                <span className="mr-4 opacity-50 text-xs">Status //</span>
                 {message}
                 {/* Scanning Line Animation */}
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent via-white/5 to-transparent -translate-y-full animate-[scan_2s_linear_infinite]"></div>
@@ -476,12 +476,12 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
             </div>
 
             {!combinedElement && (
-              <div className="mt-6 flex gap-8 justify-center text-[9px] text-white/40 font-mono uppercase tracking-[0.2em]">
+              <div className="mt-6 flex gap-8 justify-center text-[9px] text-white/40 font-mono tracking-normal">
                 <span className="flex items-center gap-2">
                   <div className="w-1 h-1 bg-cyan-400"></div>Hover Select
                 </span>
                 <span className="flex items-center gap-2">
-                  <div className="w-1 h-1 bg-white"></div>Clap Fuse
+                  <div className="w-1 h-1 bg-white"></div>Snap Fuse
                 </span>
                 <span className="flex items-center gap-2">
                   <div className="w-1 h-1 bg-red-500"></div>Spin Reset
@@ -496,7 +496,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
       {showSixtySeven && (
         <div className="fixed inset-0 flex items-center justify-center z-[200] pointer-events-none">
           <div 
-            className="text-[20rem] font-['Orbitron'] font-black text-transparent bg-clip-text bg-gradient-to-b from-cyan-400 via-purple-500 to-pink-500 drop-shadow-[0_0_100px_rgba(255,255,255,0.8)] animate-pulse"
+            className="text-[20rem] font-['Space_Grotesk'] font-bold text-transparent bg-clip-text bg-gradient-to-b from-cyan-400 via-purple-500 to-pink-500 drop-shadow-[0_0_100px_rgba(255,255,255,0.8)] animate-pulse"
             style={{
               animation: 'pulse 1s ease-in-out infinite, fadeInOut 3s ease-in-out forwards'
             }}

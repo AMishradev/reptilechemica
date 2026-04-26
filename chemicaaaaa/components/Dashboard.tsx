@@ -53,7 +53,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
       isDetected: false,
       isPresent: false
     },
-    isClapping: false,
+    isSnapReady: false,
     isResetGesture: false,
     isClosedFist: false,
     isSixtySevenGesture: false,
@@ -174,13 +174,13 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
       {/* Header */}
       <div className="w-full max-w-6xl flex justify-between items-end mb-8 border-b border-white/20 pb-4">
         <div>
-          <h1 className="text-4xl md:text-6xl font-['Orbitron'] font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-            ATOMIS LAB
+          <h1 className="text-4xl md:text-6xl font-['Space_Grotesk'] font-semibold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
+            Reptile Chemica Lab
           </h1>
-          <p className="text-sm font-mono text-cyan-200/60 tracking-widest mt-2">RESEARCH & SYNTHESIS INTERFACE</p>
+          <p className="text-sm font-mono text-cyan-200/60 tracking-normal mt-2">Research & synthesis interface</p>
         </div>
         <div className="text-right">
-           <div className="text-xs text-gray-400 font-mono uppercase mb-1">Discovery Progress</div>
+           <div className="text-xs text-gray-400 font-mono mb-1">Discovery Progress</div>
            <div className="text-2xl font-bold font-mono text-cyan-400">{Math.floor((unlockedCount / allDiscoverables.length) * 100)}%</div>
            <div className="w-32 h-1 bg-gray-800 mt-1 rounded-full overflow-hidden">
               <div 
@@ -199,7 +199,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
              
              {/* LEVEL 1: BASE COMPONENTS */}
              <div>
-                <h3 className="text-sm font-mono text-cyan-500/80 tracking-widest mb-4 border-b border-cyan-500/20 pb-2">LEVEL 1 // BASE COMPONENTS</h3>
+                <h3 className="text-sm font-mono text-cyan-500/80 tracking-normal mb-4 border-b border-cyan-500/20 pb-2">Level 1 // Base Components</h3>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
                     {getElementsByLevel(1).map(el => (
                         <DashboardItem 
@@ -217,7 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
 
              {/* LEVEL 2: COMBINED COMPONENTS */}
              <div>
-                <h3 className="text-sm font-mono text-purple-500/80 tracking-widest mb-4 border-b border-purple-500/20 pb-2">LEVEL 2 // COMBINED COMPONENTS</h3>
+                <h3 className="text-sm font-mono text-purple-500/80 tracking-normal mb-4 border-b border-purple-500/20 pb-2">Level 2 // Combined Components</h3>
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
                     {getElementsByLevel(2).map(el => (
                         <DashboardItem 
@@ -235,7 +235,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
 
              {/* LEVEL 3: SYSTEMS */}
              <div>
-                <h3 className="text-sm font-mono text-yellow-500/60 tracking-widest mb-4 border-b border-yellow-500/10 pb-2">LEVEL 3 // SYSTEMS</h3>
+                <h3 className="text-sm font-mono text-yellow-500/60 tracking-normal mb-4 border-b border-yellow-500/10 pb-2">Level 3 // Systems</h3>
                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 opacity-90">
                     {getElementsByLevel(3).map(el => (
                         <DashboardItem 
@@ -258,7 +258,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
              
              {/* Quiz Section */}
              <div className="bg-gradient-to-b from-purple-900/20 to-black/40 border border-purple-500/30 rounded-2xl p-4">
-                <div className="text-xs font-mono text-purple-400 uppercase tracking-widest mb-3">Training Modules</div>
+                <div className="text-xs font-mono text-purple-400 tracking-normal mb-3">Training Modules</div>
                 <div className="flex gap-2">
                     <button
                         onClick={() => {
@@ -288,7 +288,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
              {/* Slot Management Panel */}
              <div className="bg-gradient-to-b from-cyan-900/20 to-black/40 border border-cyan-500/30 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                    <div className="text-xs font-mono text-cyan-400 uppercase tracking-widest">Lab Slots</div>
+                    <div className="text-xs font-mono text-cyan-400 tracking-normal">Lab Slots</div>
                     <div className="text-sm font-bold font-mono text-cyan-300">
                         {selectedSlots.length} / {MAX_SLOTS}
                     </div>
@@ -330,8 +330,8 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
                              width: '50%',
                              height: '50%',
                              fontSize: '8rem',
-                             fontWeight: 'bold',
-                             fontFamily: 'Orbitron, sans-serif',
+                             fontWeight: 600,
+                             fontFamily: 'Space Grotesk, Inter, sans-serif',
                              color: selectedInfo.color,
                              opacity: 0.15,
                              zIndex: 0,
@@ -354,7 +354,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
                   <div className="relative z-10 pr-20">
                      <div className="flex items-center gap-2 mb-2">
                          <div className="w-2 h-2 bg-cyan-500 rounded-full animate-ping"></div>
-                         <div className="text-xs font-bold text-cyan-400 font-mono uppercase tracking-widest">Component Analysis</div>
+                         <div className="text-xs font-semibold text-cyan-400 font-mono tracking-normal">Component Analysis</div>
                     </div>
                     
                     <p className="text-xs text-gray-300 leading-relaxed font-mono min-h-[80px]">
@@ -374,7 +374,7 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
                 }}
                 disabled={selectedSlots.length === 0}
                 className={`
-                    interactable-btn mt-auto w-full py-4 font-bold font-['Orbitron'] tracking-widest rounded-xl transition-all
+                    interactable-btn mt-auto w-full py-4 font-semibold font-['Space_Grotesk'] tracking-normal rounded-xl transition-all
                     ${selectedSlots.length === 0
                         ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                         : 'bg-cyan-600 hover:bg-cyan-500 text-black shadow-[0_0_20px_rgba(8,145,178,0.4)] hover:shadow-[0_0_30px_rgba(34,211,238,0.6)]'
@@ -469,11 +469,11 @@ const DashboardItem = ({
             {!inSlot && (
                 <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_#00ff00]"></div>
             )}
-            <div className={`${symbolSizeClass} font-bold font-['Orbitron'] mb-1`} style={{color: el.color}}>{el.symbol}</div>
-            <div className="text-[8px] md:text-[10px] font-mono text-gray-400 uppercase tracking-wider text-center px-1">{el.name}</div>
+            <div className={`${symbolSizeClass} font-semibold font-['Space_Grotesk'] mb-1`} style={{color: el.color}}>{el.symbol}</div>
+            <div className="text-[8px] md:text-[10px] font-mono text-gray-400 tracking-normal text-center px-1">{el.name}</div>
             {unlocked && (
                 <div className="absolute bottom-1 text-[8px] font-mono text-cyan-400/60">
-                    {inSlot ? 'IN SLOT' : canAdd ? 'DBL-CLICK TO ADD' : 'SLOTS FULL'}
+                    {inSlot ? 'In slot' : canAdd ? 'Double-click to add' : 'Slots full'}
                 </div>
             )}
         </>

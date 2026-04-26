@@ -252,7 +252,7 @@ const LandingPage: React.FC = () => {
       indexPosition: { x: 0.7, y: 0.5, z: 0 },
       isPresent: false,
     },
-    isClapping: false,
+    isSnapReady: false,
     isResetGesture: false,
     isClosedFist: false,
     isSixtySevenGesture: false,
@@ -353,10 +353,20 @@ const LandingPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Brand */}
+              <div className="relative z-10 mb-6 text-center">
+                <h1 className="font-['Space_Grotesk'] text-4xl md:text-5xl font-semibold text-white">
+                  Reptile Chemica
+                </h1>
+                <p className="mt-3 text-sm md:text-base text-gray-400">
+                  A hand-tracked system design lab.
+                </p>
+              </div>
+
               {/* Element Code */}
               <div className="relative z-10 mb-4">
                 <div className="inline-block px-6 py-3 bg-gray-800/80 rounded-full border border-gray-600/50">
-                  <span className="font-['Roboto_Mono'] text-white text-lg md:text-xl">
+                  <span className="font-['IBM_Plex_Mono'] text-white text-lg md:text-xl">
                     :: H₂O
                   </span>
                 </div>
@@ -364,8 +374,8 @@ const LandingPage: React.FC = () => {
 
               {/* Inviter Info */}
               <div className="relative z-10">
-                <p className="text-sm text-gray-400 font-['Roboto_Mono']">
-                  DISCOVERED BY @ATOMIS
+                <p className="text-sm text-gray-400 font-['Inter']">
+                  Built in Reptile Chemica
                 </p>
               </div>
             </div>
@@ -379,10 +389,10 @@ const LandingPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
               {/* Left */}
               <div className="flex items-center gap-3 justify-start md:justify-start">
-                <span className="text-2xl md:text-3xl font-['Orbitron'] font-bold">
+                <span className="text-2xl md:text-3xl font-['Space_Grotesk'] font-semibold">
                   1x
                 </span>
-                <span className="text-sm md:text-base font-['Roboto_Mono'] text-gray-300">
+                <span className="text-sm md:text-base font-['Inter'] text-gray-300">
                   Component to combine
                 </span>
               </div>
@@ -391,10 +401,9 @@ const LandingPage: React.FC = () => {
               <div className="flex justify-center">
                 <button
                   onClick={handleGetStarted}
-                  className="px-8 py-4 bg-transparent border-2 border-white/20 hover:border-white/40 rounded-lg font-['Orbitron'] text-lg md:text-xl font-medium transition-all duration-300 hover:scale-105 whitespace-nowrap"
+                  className="px-8 py-4 bg-transparent border-2 border-white/20 hover:border-white/40 rounded-lg font-['Space_Grotesk'] text-lg md:text-xl font-semibold transition-all duration-300 hover:scale-105 whitespace-nowrap"
                   style={{
-                    fontFamily: "Orbitron, sans-serif",
-                    letterSpacing: "0.05em",
+                    fontFamily: "Space Grotesk, Inter, sans-serif",
                   }}
                 >
                   Start Experimenting →
@@ -402,7 +411,7 @@ const LandingPage: React.FC = () => {
               </div>
 
               {/* Right */}
-              <div className="text-right text-sm font-['Roboto_Mono'] text-gray-400 max-w-sm md:ml-auto">
+              <div className="text-right text-sm font-['Inter'] text-gray-400 max-w-sm md:ml-auto">
                 <p>Start experimenting with system components</p>
                 <p>and compose larger architecture patterns.</p>
               </div>
@@ -421,19 +430,19 @@ const LandingPage: React.FC = () => {
                       ></div>
                     ))}
                   </div>
-                  <span className="font-['Orbitron'] font-bold text-lg">
-                    Atomis
+                  <span className="font-['Space_Grotesk'] font-semibold text-lg">
+                    Reptile Chemica
                   </span>
                 </div>
 
                 {/* Right: Attribution */}
-                <div className="flex items-center gap-2 text-sm font-['Roboto_Mono'] text-gray-400">
+                <div className="flex items-center gap-2 text-sm font-['Inter'] text-gray-400">
                   <span>curated by</span>
                   <div className="flex items-center gap-1">
-                    <span className="font-['Orbitron'] font-bold text-white">
-                      M
+                    <span className="font-['Space_Grotesk'] font-semibold text-white">
+                      R
                     </span>
-                    <span className="text-white">Atomis</span>
+                    <span className="text-white">Reptile Chemica</span>
                   </div>
                 </div>
               </div>

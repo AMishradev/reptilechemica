@@ -73,7 +73,7 @@ const ComponentNode: React.FC<{
       <Html position={[0, -0.78, 0]} center style={{ pointerEvents: 'none' }}>
         <div className="flex flex-col items-center font-mono text-center">
           <div
-            className="text-sm font-bold tracking-widest"
+            className="text-sm font-semibold tracking-normal"
             style={{
               color: '#ffffff',
               textShadow: `0 0 10px ${component.color}`,
@@ -82,7 +82,7 @@ const ComponentNode: React.FC<{
           >
             {component.symbol}
           </div>
-          <div className="text-[8px] uppercase tracking-[0.18em] text-cyan-100/70 whitespace-nowrap">
+          <div className="text-[8px] tracking-normal text-cyan-100/70 whitespace-nowrap">
             {component.name}
           </div>
         </div>
@@ -149,7 +149,7 @@ const RouteComponent: React.FC<{
 
       <Html position={[0, 1.05, 0]} center style={{ pointerEvents: 'none' }}>
         <div
-          className="font-['Orbitron'] text-sm font-bold tracking-[0.35em] text-cyan-100"
+          className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100"
           style={{
             opacity: opacityTarget,
             textShadow: '0 0 14px rgba(45, 212, 191, 0.9)',
@@ -227,7 +227,7 @@ const EdgeComponent: React.FC<{
 
       <Html position={[1.35, 0, 0]} center style={{ pointerEvents: 'none' }}>
         <div
-          className="font-['Orbitron'] text-sm font-bold tracking-[0.35em] text-cyan-100"
+          className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100"
           style={{
             opacity: opacityTarget,
             textShadow: '0 0 14px rgba(56, 189, 248, 0.9)',
@@ -354,18 +354,18 @@ const WebAppComponent: React.FC<{
       <ComponentNode component={lb} position={lbPos} opacity={opacityTarget} pulseOffset={1.35} />
 
       <Html position={[-2.95, 0, 0]} center style={{ pointerEvents: 'none' }}>
-        <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-cyan-100/70" style={{ opacity: opacityTarget }}>
+        <div className="font-mono text-[9px] tracking-normal text-cyan-100/70" style={{ opacity: opacityTarget }}>
           Edge Entry
         </div>
       </Html>
       <Html position={[1.42, 1.25, 0]} center style={{ pointerEvents: 'none' }}>
-        <div className="font-mono text-[9px] uppercase tracking-[0.25em] text-emerald-100/70" style={{ opacity: opacityTarget }}>
+        <div className="font-mono text-[9px] tracking-normal text-emerald-100/70" style={{ opacity: opacityTarget }}>
           Routed Backend
         </div>
       </Html>
       <Html position={[0, -1.75, 0]} center style={{ pointerEvents: 'none' }}>
         <div
-          className="font-['Orbitron'] text-base font-bold tracking-[0.4em] text-white"
+          className="font-['Space_Grotesk'] text-base font-semibold tracking-normal text-white"
           style={{
             opacity: opacityTarget,
             textShadow: '0 0 16px rgba(56, 189, 248, 0.95)',
@@ -506,7 +506,7 @@ const FlowPacket: React.FC<DiagramFlowConfig & { opacityTarget: number }> = ({
 const DiagramLabel: React.FC<{ label: DiagramTextConfig; opacityTarget: number }> = ({ label, opacityTarget }) => (
   <Html position={label.position} center style={{ pointerEvents: 'none' }}>
     <div
-      className="font-mono text-[9px] uppercase tracking-[0.25em] text-center whitespace-nowrap"
+      className="font-mono text-[9px] tracking-normal text-center whitespace-nowrap"
       style={{
         color: label.color ?? '#cffafe',
         opacity: opacityTarget,
@@ -578,7 +578,7 @@ const PresetDiagram: React.FC<{
 
       <Html position={[0, 1.95, 0]} center style={{ pointerEvents: 'none' }}>
         <div
-          className="font-['Orbitron'] text-base font-bold tracking-[0.35em] text-white text-center whitespace-nowrap"
+          className="font-['Space_Grotesk'] text-base font-semibold tracking-normal text-white text-center whitespace-nowrap"
           style={{
             opacity: opacityTarget,
             textShadow: `0 0 16px ${preset.color}`,

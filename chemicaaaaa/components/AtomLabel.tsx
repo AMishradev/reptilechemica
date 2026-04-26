@@ -12,7 +12,7 @@ const AtomLabel: React.FC<AtomLabelProps> = ({ element, position }) => {
     <Html position={position} center zIndexRange={[100, 0]} style={{ pointerEvents: 'none' }}>
       <div className="flex flex-col items-center justify-center opacity-90">
         <div 
-          className="text-2xl font-bold font-['Orbitron'] tracking-tighter transition-colors duration-500"
+          className="text-2xl font-semibold font-['Space_Grotesk'] tracking-normal transition-colors duration-500"
           style={{ 
             color: '#ffffff',
             textShadow: `0 0 10px ${element.color}, 0 0 20px ${element.color}`
@@ -23,7 +23,7 @@ const AtomLabel: React.FC<AtomLabelProps> = ({ element, position }) => {
         
         <div className="flex items-center gap-2 mt-1">
             <div className="h-px w-4 bg-white/20"></div>
-            <div className="text-[10px] font-mono text-cyan-200 tracking-[0.2em] uppercase">
+            <div className="text-[10px] font-mono text-cyan-200 tracking-normal">
             {element.name}
             </div>
             <div className="h-px w-4 bg-white/20"></div>

@@ -1,6 +1,6 @@
 {
-  "name": "ChemiParticles 3D",
-  "description": "Interactive real-time hand-tracked periodic table particle system.",
+  "name": "Reptile Chemica",
+  "description": "Interactive real-time hand-tracked chemistry and system design lab.",
   "requestFramePermissions": [
     "camera"
   ]

@@ -106,7 +106,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
       const trackingData: TrackingData = {
         left: { pinchDistance: 0.0, isPinching: false, isPointing: false, position: {x: 0.15, y: 0.5, z: 0}, indexPosition: {x: 0.15, y: 0.5, z: 0}, isPresent: false },
         right: { pinchDistance: 0.0, isPinching: false, isPointing: false, position: {x: 0.85, y: 0.5, z: 0}, indexPosition: {x: 0.85, y: 0.5, z: 0}, isPresent: false },
-        isClapping: false,
+        isSnapReady: false,
         isResetGesture: false,
         isClosedFist: false,
         isSixtySevenGesture: false,
@@ -189,14 +189,14 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
         
         trackingData.isClosedFist = detectedFist;
 
-        // Clap Detection
+        // Snap proximity detection for instant fusion when both tracked hands meet.
         if (result.landmarks.length === 2) {
           const dx = trackingData.left.position.x - trackingData.right.position.x;
           const dy = trackingData.left.position.y - trackingData.right.position.y;
           const dist = Math.sqrt(dx*dx + dy*dy);
           trackingData.handDistance = dist;
           
-          if (dist < 0.12) trackingData.isClapping = true;
+          if (dist < 0.12) trackingData.isSnapReady = true;
           
           // 67 Gesture Detection: DISABLED
           // Both palms up + alternating up/down motion detection has been commented out
@@ -234,7 +234,7 @@ const HandTracker: React.FC<HandTrackerProps> = ({ onUpdate, onCameraReady }) =>
       />
       {error && (
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-red-900/90 p-8 rounded-2xl border border-red-500 text-white z-50 text-center shadow-[0_0_50px_rgba(255,0,0,0.5)]">
-          <h3 className="text-2xl font-bold font-['Orbitron'] mb-2 text-red-200">SYSTEM ERROR</h3>
+          <h3 className="text-2xl font-semibold font-['Space_Grotesk'] mb-2 text-red-200">System Error</h3>
           <p className="font-mono text-sm">{error}</p>
         </div>
       )}
