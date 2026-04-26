@@ -78,6 +78,16 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
   const [mascotText, setMascotText] = useState("Welcome to the design lab. Pick two components.");
   const [isVisible, setIsVisible] = useState(true);
   const [isGeminiLoading, setIsGeminiLoading] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatMessages, setChatMessages] = useState<MascotChatEntry[]>([
+    {
+      id: 'intro',
+      role: 'assistant',
+      content: 'Atomis online. Ask me about networking or system design.',
+    },
+  ]);
   
   // Track the current Gemini explanation
   const [geminiExplanation, setGeminiExplanation] = useState<string | null>(null);
@@ -93,6 +103,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
   const speechAudioRef = useRef<HTMLAudioElement | null>(null);
   const speechUrlRef = useRef<string | null>(null);
   const lastSpokenTextRef = useRef<string>('');
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   const stopMascotSpeech = () => {
     speechAbortRef.current?.abort();
