@@ -2,13 +2,13 @@ import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const readRequestBody = (req: import('http').IncomingMessage) =>
+const readRequestBody = (req: import('http').IncomingMessage, maxLength = 10_000) =>
   new Promise<string>((resolve, reject) => {
     let body = '';
 
     req.on('data', chunk => {
       body += chunk;
-      if (body.length > 10_000) {
+      if (body.length > maxLength) {
         reject(new Error('Request body too large'));
         req.destroy();
       }
