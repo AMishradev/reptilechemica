@@ -140,7 +140,40 @@ export default defineConfig(({ mode }) => {
                   return;
                 }
 
-                sendJson(res, 200, { reply: `received ${messages.length} messages with model ${asiModel}` });
+                const asiResponse = await fetch('https://api.asi1.ai/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${asiKey}`,
+                  },
+                  body: JSON.stringify({
+                    model: asiModel,
+                    messages: [
+                      { role: 'system', content: atomisSystemPrompt },
+                      ...messages,
+                    ],
+                    max_tokens: 220,
+                    temperature: 0.35,
+                  }),
+                });
+                const payload = await asiResponse.json().catch(() => null) as {
+                  choices?: Array<{ message?: { content?: string } }>;
+                  error?: { message?: string };
+                } | null;
+
+                if (!asiResponse.ok) {
+                  console.error('ASI:One chat proxy error:', payload?.error?.message ?? asiResponse.statusText);
+                  sendJson(res, asiResponse.status, { error: 'ASI:One chat request failed' });
+                  return;
+                }
+
+                const reply = payload?.choices?.[0]?.message?.content?.trim();
+                if (!reply) {
+                  sendJson(res, 502, { error: 'ASI:One returned an empty response' });
+                  return;
+                }
+
+                sendJson(res, 200, { reply });
               } catch (error) {
                 console.error('Agentverse chat proxy error:', error);
                 sendJson(res, 500, { error: 'Agentverse chat proxy failed' });
