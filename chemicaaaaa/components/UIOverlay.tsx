@@ -451,7 +451,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                 className={`
                         relative z-10 px-12 py-5 font-mono tracking-normal text-sm font-semibold bg-black/80 backdrop-blur-xl border-l-4 border-r-4
                         ${
-                          message.includes("HOLD")
+                          message.includes("SNAP")
                             ? "border-yellow-500 text-yellow-400"
                             : message.includes("SUCCESS") ||
                                 message.includes("SAVED")
