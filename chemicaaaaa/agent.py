@@ -22,16 +22,16 @@ from uagents_core.contrib.protocols.chat import (
 load_dotenv()
 
 SYSTEM_PROMPT = (
-    "You are Reptile Chemica, the Reptile Chemica lab guide. You only answer questions "
-    "about the Reptile Chemica system-design lab, computer networking, "
+    "You are Reptile Systems, the Reptile Systems architecture guide. You only answer questions "
+    "about the Reptile Systems design studio, computer networking, "
     "distributed systems, cloud architecture, and system design. Keep answers "
     "under 90 words, friendly, direct, and plain text with no emoji, markdown, "
     "bullets, or bold markers. Use the lookup_combination tool whenever the "
-    "user asks whether lab components combine, what a fusion creates, or how "
-    "two components relate in the lab. After the tool returns, explain the "
-    "exact fusion result and the next lab action. If APP and CACHE seem stuck, "
-    "tell the user to select the APP and CACHE lab components exactly, then "
-    "perform the snap/fusion gesture."
+    "user asks whether architecture components combine, what a composition creates, or how "
+    "two components relate in the design studio. After the tool returns, explain the "
+    "exact composition result and the next design action. If APP and CACHE seem stuck, "
+    "tell the user to select the APP and CACHE components exactly, then "
+    "perform the snap/compose gesture."
 )
 
 COMBINATIONS = {
@@ -147,17 +147,17 @@ LOOKUP_COMBINATION_TOOL = {
     "type": "function",
     "function": {
         "name": "lookup_combination",
-        "description": "Look up the Reptile Chemica lab fusion result for two component symbols or names.",
+        "description": "Look up the Reptile Systems composition result for two architecture component symbols or names.",
         "parameters": {
             "type": "object",
             "properties": {
                 "element_a": {
                     "type": "string",
-                    "description": "The first lab component, such as APP, CACHE, DB, LB, API, EDGE, or ROUTE.",
+                    "description": "The first architecture component, such as APP, CACHE, DB, LB, API, EDGE, or ROUTE.",
                 },
                 "element_b": {
                     "type": "string",
-                    "description": "The second lab component, such as APP, CACHE, DB, LB, API, EDGE, or ROUTE.",
+                    "description": "The second architecture component, such as APP, CACHE, DB, LB, API, EDGE, or ROUTE.",
                 },
             },
             "required": ["element_a", "element_b"],
@@ -189,9 +189,9 @@ def lookup_combination(element_a: str, element_b: str) -> dict:
             "elementA": normalized_a,
             "elementB": normalized_b,
             "guidance": (
-                f"No known Reptile Chemica fusion exists for {normalized_a} + "
-                f"{normalized_b}. Try selecting a valid pair from the lab shelf, "
-                "then use the snap/fusion gesture."
+                f"No known Reptile Systems composition exists for {normalized_a} + "
+                f"{normalized_b}. Try selecting a valid pair from the component shelf, "
+                "then use the snap/compose gesture."
             ),
         }
 
@@ -203,7 +203,7 @@ def lookup_combination(element_a: str, element_b: str) -> dict:
         "guidance": (
             f"{normalized_a} + {normalized_b} combines into "
             f"{result['resultSymbol']} / {result['resultName']}. Select those "
-            "two lab components exactly, then perform the snap/fusion gesture."
+            "two architecture components exactly, then perform the snap/compose gesture."
         ),
     }
 
@@ -212,7 +212,7 @@ def should_use_combination_tool(text: str) -> bool:
     normalized = text.lower()
     mentions_fusion_action = any(
         token in normalized
-        for token in ("combine", "fusion", "fuse", "mix", "pair", "merge", "snap", "+")
+        for token in ("combine", "compose", "composition", "fusion", "fuse", "mix", "pair", "merge", "snap", "+")
     )
     component_patterns = (
         ("app", "application", "appserver"),
@@ -331,7 +331,7 @@ client = OpenAI(
 )
 
 agent = Agent(
-    name=os.getenv("AGENT_NAME", "reptile-chemica"),
+    name=os.getenv("AGENT_NAME", "reptile-systems"),
     seed=os.getenv("AGENT_SEED_PHRASE"),
     port=int(os.getenv("AGENT_PORT", "8001")),
     mailbox=True,

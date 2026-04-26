@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Stars } from "@react-three/drei/core/Stars.js";
 import * as THREE from "three";
-import WaterSimulation from "./components/WaterSimulation";
-import { TrackingData } from "./types";
 
 // Particle Sphere for Background
 const BackgroundParticleSphere: React.FC = () => {
@@ -229,60 +227,98 @@ const StarryBackground: React.FC = () => {
   );
 };
 
+const architectureNodes = [
+  { label: "CLIENT", name: "User entry", top: "15%", left: "8%", color: "#38BDF8" },
+  { label: "CDN", name: "Edge cache", top: "34%", left: "24%", color: "#22D3EE" },
+  { label: "API", name: "Gateway", top: "16%", left: "47%", color: "#F472B6" },
+  { label: "APP", name: "Service", top: "45%", left: "58%", color: "#FACC15" },
+  { label: "CACHE", name: "Fast reads", top: "69%", left: "38%", color: "#4ADE80" },
+  { label: "DB", name: "Source of truth", top: "69%", left: "72%", color: "#FB923C" },
+];
+
+const architectureLinks = [
+  { top: "26%", left: "17%", width: "16%", rotate: "25deg", color: "#38BDF8" },
+  { top: "31%", left: "36%", width: "17%", rotate: "-17deg", color: "#22D3EE" },
+  { top: "31%", left: "53%", width: "17%", rotate: "53deg", color: "#F472B6" },
+  { top: "61%", left: "48%", width: "15%", rotate: "132deg", color: "#4ADE80" },
+  { top: "61%", left: "62%", width: "17%", rotate: "37deg", color: "#FB923C" },
+];
+
+const SystemArchitecturePreview: React.FC = () => (
+  <div className="absolute inset-0 pointer-events-none">
+    <div
+      className="absolute inset-0 opacity-[0.18]"
+      style={{
+        backgroundImage: `
+          linear-gradient(rgba(103,232,249,0.16) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(103,232,249,0.16) 1px, transparent 1px)
+        `,
+        backgroundSize: "72px 72px",
+        maskImage:
+          "linear-gradient(90deg, transparent 0%, black 18%, black 82%, transparent 100%)",
+      }}
+    />
+
+    <div className="absolute right-[-8%] top-[12%] h-[66vh] w-[min(76vw,840px)] max-w-[900px]">
+      {architectureLinks.map((link, index) => (
+        <div
+          key={`${link.left}-${index}`}
+          className="landing-architecture-link absolute h-px origin-left"
+          style={{
+            top: link.top,
+            left: link.left,
+            width: link.width,
+            transform: `rotate(${link.rotate})`,
+            background: `linear-gradient(90deg, transparent, ${link.color}, transparent)`,
+            boxShadow: `0 0 18px ${link.color}`,
+          }}
+        />
+      ))}
+
+      <div className="absolute left-[48%] top-[42%] -translate-x-1/2 -translate-y-1/2">
+        <div className="relative grid h-28 w-28 place-items-center border border-cyan-300/70 bg-black/45 backdrop-blur-sm shadow-[0_0_36px_rgba(34,211,238,0.32)]">
+          <div className="absolute inset-2 border border-white/10" />
+          <div className="text-center">
+            <div className="font-['Space_Grotesk'] text-xl font-semibold text-white">
+              3D
+            </div>
+            <div className="font-mono text-[10px] text-cyan-200/75">COMPOSE</div>
+          </div>
+        </div>
+      </div>
+
+      {architectureNodes.map((node) => (
+        <div
+          key={node.label}
+          className="absolute w-28 border border-white/12 bg-black/55 px-3 py-2 backdrop-blur-md shadow-[0_0_24px_rgba(0,0,0,0.35)]"
+          style={{
+            top: node.top,
+            left: node.left,
+            borderColor: `${node.color}66`,
+          }}
+        >
+          <div
+            className="font-['Space_Grotesk'] text-lg font-semibold"
+            style={{ color: node.color }}
+          >
+            {node.label}
+          </div>
+          <div className="font-mono text-[10px] leading-tight text-white/45">
+            {node.name}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 // Main Landing Page Component
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Mock tracking data for landing page (no hand tracking)
-  const mockTrackingRef = useRef<TrackingData>({
-    left: {
-      pinchDistance: 0.3,
-      isPinching: false,
-      isPointing: false,
-      position: { x: 0.3, y: 0.5, z: 0 },
-      indexPosition: { x: 0.3, y: 0.5, z: 0 },
-      isPresent: false,
-    },
-    right: {
-      pinchDistance: 0.3,
-      isPinching: false,
-      isPointing: false,
-      position: { x: 0.7, y: 0.5, z: 0 },
-      indexPosition: { x: 0.7, y: 0.5, z: 0 },
-      isPresent: false,
-    },
-    isSnapReady: false,
-    isResetGesture: false,
-    isClosedFist: false,
-    isSixtySevenGesture: false,
-    handDistance: 0.4,
-    cameraAspect: 1.77,
-  });
-
   useEffect(() => {
     setIsLoaded(true);
-    // Animate mock hands for visual effect
-    const interval = setInterval(() => {
-      const time = Date.now() * 0.001;
-      mockTrackingRef.current.left.position.x = 0.3 + Math.sin(time) * 0.1;
-      mockTrackingRef.current.left.position.y =
-        0.5 + Math.cos(time * 0.7) * 0.1;
-      mockTrackingRef.current.right.position.x =
-        0.7 + Math.sin(time + Math.PI) * 0.1;
-      mockTrackingRef.current.right.position.y =
-        0.5 + Math.cos(time * 0.7 + Math.PI) * 0.1;
-      mockTrackingRef.current.left.indexPosition =
-        mockTrackingRef.current.left.position;
-      mockTrackingRef.current.right.indexPosition =
-        mockTrackingRef.current.right.position;
-      mockTrackingRef.current.left.pinchDistance =
-        0.3 + Math.sin(time * 2) * 0.1;
-      mockTrackingRef.current.right.pinchDistance =
-        0.3 + Math.sin(time * 2 + Math.PI) * 0.1;
-    }, 16); // ~60fps
-
-    return () => clearInterval(interval);
   }, []);
 
   const handleGetStarted = () => {
@@ -294,162 +330,115 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-screen bg-black text-white overflow-hidden">
+    <div className="relative min-h-screen bg-black text-white overflow-hidden">
       {/* Starry Background */}
       <div className="absolute inset-0 z-0">
         <StarryBackground />
       </div>
+      <SystemArchitecturePreview />
+      <div className="absolute inset-0 z-[1] bg-[linear-gradient(90deg,rgba(0,0,0,0.96)_0%,rgba(0,0,0,0.72)_43%,rgba(0,0,0,0.22)_100%)]" />
+      <div className="absolute inset-x-0 bottom-0 z-[1] h-48 bg-gradient-to-t from-black to-transparent" />
 
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col h-full">
-        {/* Central Card */}
-        <div className="flex-1 flex items-center justify-center px-6 md:px-12 py-12">
-          <div
-            className={`relative w-full max-w-md transition-all duration-1000 ${
-              isLoaded
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-10"
-            }`}
-          >
-            {/* Invite Card */}
-            <div className="relative bg-gray-900/80 backdrop-blur-sm rounded-2xl p-8 md:p-12 border border-gray-700/50 shadow-2xl">
-              {/* Textured overlay effect */}
-              <div
-                className="absolute inset-0 rounded-2xl opacity-30"
-                style={{
-                  backgroundImage: `
-                    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px),
-                    repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)
-                  `,
-                }}
-              ></div>
-
-              {/* Water Simulation */}
-              <div className="relative h-48 mb-8 flex items-center justify-center">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-48 h-48 md:w-64 md:h-64">
-                    <Canvas camera={{ position: [0, 0, 3], fov: 50 }}>
-                      <ambientLight intensity={0.5} />
-                      <pointLight
-                        position={[2, 2, 2]}
-                        intensity={1}
-                        color="#00BFFF"
-                      />
-                      <pointLight
-                        position={[-2, -2, 2]}
-                        intensity={0.8}
-                        color="#8B5CF6"
-                      />
-                      <pointLight
-                        position={[0, 2, -2]}
-                        intensity={0.6}
-                        color="#00FFFF"
-                      />
-                      <group scale={0.7}>
-                        <WaterSimulation trackingRef={mockTrackingRef} />
-                      </group>
-                    </Canvas>
-                  </div>
-                </div>
+      <div className="relative z-10 flex min-h-screen flex-col px-5 md:px-10">
+        <header className="flex items-center justify-between py-5">
+          <div className="flex items-center gap-3">
+            <div className="grid h-8 w-8 grid-cols-3 gap-1">
+              {[...Array(9)].map((_, index) => (
+                <div key={index} className="bg-cyan-200/85" />
+              ))}
+            </div>
+            <div>
+              <div className="font-['Space_Grotesk'] text-lg font-semibold">
+                Reptile Systems
               </div>
-
-              {/* Brand */}
-              <div className="relative z-10 mb-6 text-center">
-                <h1 className="font-['Space_Grotesk'] text-4xl md:text-5xl font-semibold text-white">
-                  Reptile Chemica
-                </h1>
-                <p className="mt-3 text-sm md:text-base text-gray-400">
-                  A hand-tracked system design lab.
-                </p>
-              </div>
-
-              {/* Element Code */}
-              <div className="relative z-10 mb-4">
-                <div className="inline-block px-6 py-3 bg-gray-800/80 rounded-full border border-gray-600/50">
-                  <span className="font-['IBM_Plex_Mono'] text-white text-lg md:text-xl">
-                    :: H₂O
-                  </span>
-                </div>
-              </div>
-
-              {/* Inviter Info */}
-              <div className="relative z-10">
-                <p className="text-sm text-gray-400 font-['Inter']">
-                  Built in Reptile Chemica
-                </p>
+              <div className="font-mono text-[10px] text-cyan-200/55">
+                SYSTEMS DESIGN IN 3D
               </div>
             </div>
           </div>
-        </div>
+
+          <button
+            onClick={handleClose}
+            className="border border-white/15 bg-white/5 px-4 py-2 font-mono text-xs text-white/70 transition-colors hover:border-cyan-300/60 hover:text-cyan-100"
+          >
+            Skip Intro
+          </button>
+        </header>
+
+        <main
+          className={`relative flex flex-1 flex-col justify-center py-10 md:pb-16 md:pt-8 transition-all duration-1000 ${
+            isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+          }`}
+        >
+          <div className="max-w-3xl">
+            <div className="mb-5 inline-flex border border-cyan-300/35 bg-cyan-300/10 px-3 py-2 font-mono text-xs text-cyan-100">
+              CLIENT + API + CACHE + DB
+            </div>
+
+            <h1 className="font-['Space_Grotesk'] text-[clamp(3rem,8vw,7.5rem)] font-semibold leading-[0.88] text-white">
+              Design systems in thin air.
+            </h1>
+
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-cyan-50/72 md:text-xl">
+              Snap infrastructure components into living 3D architecture diagrams
+              and watch reliable systems assemble in real time.
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleGetStarted}
+                className="bg-cyan-200 px-6 py-4 font-['Space_Grotesk'] text-base font-semibold text-black transition-colors hover:bg-white"
+              >
+                Launch Studio
+              </button>
+              <div className="border border-white/12 bg-black/30 px-4 py-3 font-mono text-xs text-white/58">
+                HAND TRACKING READY
+              </div>
+            </div>
+          </div>
+        </main>
 
         {/* Footer */}
-        <footer className="w-full px-6 md:px-12 pb-6">
-          <div className="space-y-6">
-            {/* Top Footer Section */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-              {/* Left */}
-              <div className="flex items-center gap-3 justify-start md:justify-start">
-                <span className="text-2xl md:text-3xl font-['Space_Grotesk'] font-semibold">
-                  1x
-                </span>
-                <span className="text-sm md:text-base font-['Inter'] text-gray-300">
-                  Component to combine
-                </span>
-              </div>
-
-              {/* Center - CTA Button */}
-              <div className="flex justify-center">
-                <button
-                  onClick={handleGetStarted}
-                  className="px-8 py-4 bg-transparent border-2 border-white/20 hover:border-white/40 rounded-lg font-['Space_Grotesk'] text-lg md:text-xl font-semibold transition-all duration-300 hover:scale-105 whitespace-nowrap"
-                  style={{
-                    fontFamily: "Space Grotesk, Inter, sans-serif",
-                  }}
-                >
-                  Start Experimenting →
-                </button>
-              </div>
-
-              {/* Right */}
-              <div className="text-right text-sm font-['Inter'] text-gray-400 max-w-sm md:ml-auto">
-                <p>Start experimenting with system components</p>
-                <p>and compose larger architecture patterns.</p>
-              </div>
-            </div>
-
-            {/* Bottom Bar */}
-            <div className="w-full bg-gray-900/60 backdrop-blur-md border-t border-gray-700/50 px-6 md:px-12 py-4 rounded-t-lg">
-              <div className="flex justify-between items-center">
-                {/* Left: Logo */}
-                <div className="flex items-center gap-3">
-                  <div className="grid grid-cols-3 gap-1 w-6 h-6">
-                    {[...Array(9)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-1.5 h-1.5 bg-white rounded-sm"
-                      ></div>
-                    ))}
-                  </div>
-                  <span className="font-['Space_Grotesk'] font-semibold text-lg">
-                    Reptile Chemica
-                  </span>
+        <footer className="relative z-10 pb-5">
+          <div className="grid gap-px overflow-hidden border border-white/10 bg-white/10 md:grid-cols-3">
+            {[
+              ["01", "Pick components", "client, API, cache, queue, database"],
+              ["02", "Snap to compose", "turn pairs into architecture patterns"],
+              ["03", "Ship the diagram", "practice systems design visually"],
+            ].map(([step, title, detail]) => (
+              <div key={step} className="bg-black/70 px-4 py-4 backdrop-blur-md">
+                <div className="font-mono text-[10px] text-cyan-200/50">
+                  STEP {step}
                 </div>
-
-                {/* Right: Attribution */}
-                <div className="flex items-center gap-2 text-sm font-['Inter'] text-gray-400">
-                  <span>curated by</span>
-                  <div className="flex items-center gap-1">
-                    <span className="font-['Space_Grotesk'] font-semibold text-white">
-                      R
-                    </span>
-                    <span className="text-white">Reptile Chemica</span>
-                  </div>
+                <div className="mt-1 font-['Space_Grotesk'] text-base font-semibold text-white">
+                  {title}
+                </div>
+                <div className="mt-1 font-mono text-[11px] leading-5 text-white/42">
+                  {detail}
                 </div>
               </div>
-            </div>
+            ))}
           </div>
         </footer>
       </div>
+
+      <style>{`
+        .landing-architecture-link::after {
+          content: "";
+          position: absolute;
+          inset: -1px auto -1px 0;
+          width: 24%;
+          background: linear-gradient(90deg, transparent, white, transparent);
+          animation: landing-flow 2.2s linear infinite;
+        }
+
+        @keyframes landing-flow {
+          0% { transform: translateX(-120%); opacity: 0; }
+          18% { opacity: 0.8; }
+          100% { transform: translateX(420%); opacity: 0; }
+        }
+      `}</style>
     </div>
   );
 };

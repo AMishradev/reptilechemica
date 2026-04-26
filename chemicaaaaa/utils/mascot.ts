@@ -42,12 +42,12 @@ export function getMascotFact(el: ElementData): string {
 }
 
 export function getSystemMessage(status: string): string {
-  if (status.includes("LAB READY")) return "I'm ready for the next design. Pick two components.";
+  if (status.includes("DESIGN READY")) return "I'm ready for the next design. Pick two components.";
   if (status.includes("SNAP")) return "Alignment locked. Components are ready to assemble.";
-  if (status.includes("FUSION SUCCESS")) return "Nice! A composed system component has been formed.";
+  if (status.includes("COMPOSITION SUCCESS")) return "Nice! A composed system component has been formed.";
   if (status.includes("Failed")) return "That design needs another enabling layer before it works.";
   if (status.includes("Incompatible")) return "Those components do not form a known pattern yet.";
   if (status.includes("SAVED")) return "Great work! I've added that to your collection.";
-  if (status.includes("SWAPPED")) return "Component selected. What will you pair it with?";
-  return "Observing experiment parameters...";
+  if (status.includes("SELECTED")) return "Component selected. What will you pair it with?";
+  return "Observing design constraints...";
 }

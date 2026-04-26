@@ -67,7 +67,7 @@ const shouldSpeakMascotText = (
   const context = `${message} ${mascotText}`.toUpperCase();
   const isSuccessfulMerge =
     Boolean(combinedElement && combinedElement.symbol !== 'BOOM' && combinedElement.symbol !== 'X') &&
-    context.match(/FUSION SUCCESS|QUIZ SUCCESS|CREATED/);
+    context.match(/COMPOSITION SUCCESS|QUIZ SUCCESS|CREATED/);
   const isFailedMerge = context.match(
     /FAILED|INCOMPATIBLE|UNSTABLE|WARNING|NO MATCH|TRY AGAIN|BOOM|SYSTEM FAILURE/
   );
@@ -92,7 +92,7 @@ const createChatId = () =>
   crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, trackingData, combinedElement, advice }) => {
-  const [mascotText, setMascotText] = useState("Welcome to the design lab. Pick two components.");
+  const [mascotText, setMascotText] = useState("Welcome to the design studio. Pick two components.");
   const [isVisible, setIsVisible] = useState(true);
   const [isGeminiLoading, setIsGeminiLoading] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -102,7 +102,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     {
       id: 'intro',
       role: 'assistant',
-      content: 'Reptile Chemica online. Ask me about networking or system design.',
+      content: 'Reptile Systems online. Ask me about networking or system design.',
     },
   ]);
   
@@ -235,7 +235,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
       lastUpdateRef.current = Date.now();
     } catch (error) {
       console.error('Agentverse mascot chat failed:', error);
-      const fallback = 'I cannot reach the Reptile Chemica brain yet. Check ASI_API_KEY, then restart the dev server.';
+      const fallback = 'I cannot reach the Reptile Systems brain yet. Check ASI_API_KEY, then restart the dev server.';
       setChatMessages(current => [
         ...current,
         {
@@ -258,7 +258,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
         combinedElement.symbol !== 'BOOM' && 
         combinedElement.symbol !== 'X' &&
         combinedElement.symbol !== lastCombinedElementRef.current &&
-        (message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS'))) {
+        (message.includes('COMPOSITION SUCCESS') || message.includes('QUIZ SUCCESS'))) {
       
       // If we have a previous explanation, ensure it was shown for at least 8 seconds
       if (geminiExplanation && explanationStartTime) {
@@ -362,7 +362,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
     // Only show system messages if no active Gemini explanation
     if (!geminiExplanation) {
       const nextText = advice ?? getSystemMessage(message);
-      const isIdle = message.includes("LAB READY");
+      const isIdle = message.includes("DESIGN READY");
       
       const scheduleUpdate = () => {
           const now = Date.now();
@@ -448,12 +448,12 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
         <div className="relative z-[310] mb-3 w-[min(22rem,calc(100vw-2rem))] max-h-[min(30rem,calc(100vh-11rem))] pointer-events-auto rounded-2xl border border-cyan-400/35 bg-[#031014] shadow-[0_0_32px_rgba(34,211,238,0.24)] overflow-hidden">
           <div className="flex items-center justify-between border-b border-cyan-400/20 px-4 py-3">
             <div>
-              <div className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100">Reptile Chemica</div>
+              <div className="font-['Space_Grotesk'] text-sm font-semibold tracking-normal text-cyan-100">Reptile Systems</div>
               <div className="font-mono text-[10px] text-cyan-200/60">Agentverse brain</div>
             </div>
             <button
               type="button"
-              aria-label="Close Reptile Chemica chat"
+              aria-label="Close Reptile Systems chat"
               onClick={() => setIsChatOpen(false)}
               className="h-8 w-8 rounded-full border border-white/10 bg-white/5 font-mono text-sm text-cyan-100 transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
             >
@@ -492,7 +492,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
               value={chatInput}
               onChange={event => setChatInput(event.target.value)}
               disabled={isChatLoading}
-              placeholder="Ask about the lab"
+              placeholder="Ask about the architecture"
               className="min-w-0 flex-1 rounded-xl border border-cyan-400/25 bg-black/45 px-3 py-2 font-mono text-xs text-cyan-50 placeholder:text-cyan-100/35 outline-none transition-colors focus:border-cyan-300"
             />
             <button
@@ -520,7 +520,7 @@ const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, tra
            {/* Container */}
            <button
              type="button"
-             aria-label={isChatOpen ? 'Close Reptile Chemica chat' : 'Open Reptile Chemica chat'}
+             aria-label={isChatOpen ? 'Close Reptile Systems chat' : 'Open Reptile Systems chat'}
              onClick={() => setIsChatOpen(current => !current)}
              className="w-full h-full relative z-10 pointer-events-auto cursor-pointer rounded-full bg-transparent p-0 focus:outline-none focus:ring-2 focus:ring-cyan-300/70"
            >

@@ -121,17 +121,17 @@ export const lookupCombinationTool = {
   type: 'function',
   function: {
     name: 'lookup_combination',
-    description: 'Look up the Reptile Chemica lab fusion result for two component symbols or names.',
+    description: 'Look up the Reptile Systems composition result for two architecture component symbols or names.',
     parameters: {
       type: 'object',
       properties: {
         element_a: {
           type: 'string',
-          description: 'The first lab component, such as APP, CACHE, DB, LB, API, EDGE, or ROUTE.',
+          description: 'The first architecture component, such as APP, CACHE, DB, LB, API, EDGE, or ROUTE.',
         },
         element_b: {
           type: 'string',
-          description: 'The second lab component, such as APP, CACHE, DB, LB, API, EDGE, or ROUTE.',
+          description: 'The second architecture component, such as APP, CACHE, DB, LB, API, EDGE, or ROUTE.',
         },
       },
       required: ['element_a', 'element_b'],
@@ -161,7 +161,7 @@ export function lookupCombination(elementA: string, elementB: string): Combinati
       found: false,
       elementA: normalizedA,
       elementB: normalizedB,
-      guidance: `No known Reptile Chemica fusion exists for ${normalizedA} + ${normalizedB}. Try selecting a valid pair from the lab shelf, then use the snap/fusion gesture.`,
+      guidance: `No known Reptile Systems composition exists for ${normalizedA} + ${normalizedB}. Try selecting a valid pair from the component shelf, then use the snap/compose gesture.`,
     };
   }
 
@@ -170,13 +170,13 @@ export function lookupCombination(elementA: string, elementB: string): Combinati
     elementA: normalizedA,
     elementB: normalizedB,
     ...result,
-    guidance: `${normalizedA} + ${normalizedB} combines into ${result.resultSymbol} / ${result.resultName}. Select those two lab components exactly, then perform the snap/fusion gesture.`,
+    guidance: `${normalizedA} + ${normalizedB} composes into ${result.resultSymbol} / ${result.resultName}. Select those two architecture components exactly, then perform the snap/compose gesture.`,
   };
 }
 
 export function shouldUseCombinationTool(text: string) {
   const normalized = text.toLowerCase();
-  const mentionsFusionAction = /combine|fusion|fuse|mix|pair|merge|snap|\+/.test(normalized);
+  const mentionsFusionAction = /combine|compose|composition|fusion|fuse|mix|pair|merge|snap|\+/.test(normalized);
   const componentMentions = [
     /\bapp\b|application|appserver/,
     /\bcache\b|caching/,

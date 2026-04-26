@@ -60,7 +60,7 @@ const DeathScreen: React.FC<{ reason: string }> = ({ reason }) => {
                 </p>
             </div>
             <div className="relative z-10 mt-12 text-sm text-gray-600 animate-pulse">
-                Returning to lab...
+                Returning to design studio...
             </div>
             <style>{`
                 @keyframes fadeInDelayed {
@@ -383,9 +383,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
               ) : (
                 <div className="flex items-center justify-center px-4 py-8 text-center">
                   <div className="text-white/40 font-mono text-sm">
-                    <div className="mb-2">No components in slots</div>
+                    <div className="mb-2">No components in design slots</div>
                     <div className="text-xs">
-                      Open Dashboard to select up to 14 components
+                      Open Collection to select up to 14 components
                     </div>
                   </div>
                 </div>
@@ -438,7 +438,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                 {combinedElement.name}
               </div>
               <div className="mt-4 text-xs font-mono text-cyan-300 animate-pulse">
-                Close fist to save element
+                Close fist to save component
               </div>
             </div>
           )}
