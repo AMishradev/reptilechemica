@@ -294,6 +294,8 @@ const App: React.FC = () => {
 
   const lastLeftHoverRef = useRef<string | null>(null);
   const lastRightHoverRef = useRef<string | null>(null);
+  const lastLeftPinchingRef = useRef(false);
+  const lastRightPinchingRef = useRef(false);
   const failedFusionAttemptsRef = useRef<Record<string, number>>({});
   const preSpotifyLabSlotsRef = useRef<ElementData[] | null>(null);
 
@@ -321,6 +323,8 @@ const App: React.FC = () => {
     trackingDataRef.current = createIdleTrackingData(trackingDataRef.current.cameraAspect);
     lastLeftHoverRef.current = null;
     lastRightHoverRef.current = null;
+    lastLeftPinchingRef.current = false;
+    lastRightPinchingRef.current = false;
     snapFuseArmedRef.current = true;
   }, [isDashboardOpen]);
 
@@ -639,7 +643,7 @@ const App: React.FC = () => {
     return null;
   };
 
-  const handleInteraction = useCallback((hit: HTMLElement, hand: 'LEFT' | 'RIGHT', isPinching: boolean = false) => {
+  const handleInteraction = useCallback((hit: HTMLElement, hand: 'LEFT' | 'RIGHT', isPinching: boolean = false, isPinchStart: boolean = false) => {
       // Only trigger on pinch/click, not just hover
       if (!isPinching && !hit.id.startsWith('shelf-item-')) {
           return; // For non-shelf items, require pinch to interact
@@ -661,6 +665,7 @@ const App: React.FC = () => {
           return;
       }
       if (hit.id === 'spotify-stop') {
+          if (!isPinchStart) return;
           runThrottledAction(stopSpotifyChallenge);
           return;
       }
@@ -714,9 +719,18 @@ const App: React.FC = () => {
   const onTrackingUpdate = useCallback((data: TrackingData) => {
     if (isDashboardOpen) {
       trackingDataRef.current = createIdleTrackingData(data.cameraAspect);
+      lastLeftPinchingRef.current = false;
+      lastRightPinchingRef.current = false;
       return;
     }
-    
+
+    const leftPinchStarted = data.left.isPinching && !lastLeftPinchingRef.current;
+    const rightPinchStarted = data.right.isPinching && !lastRightPinchingRef.current;
+    const rememberPinchState = () => {
+      lastLeftPinchingRef.current = data.left.isPinching;
+      lastRightPinchingRef.current = data.right.isPinching;
+    };
+
     trackingDataRef.current = data;
     
     // Handle 67 gesture detection - Easter egg: unlock Holmium
@@ -757,80 +771,85 @@ const App: React.FC = () => {
     }
     */
     
-    if (gameState === 'dead') return;
+    if (gameState === 'dead') {
+      rememberPinchState();
+      return;
+    }
 
-	    if (data.isResetGesture || (data.isClosedFist && combinedElement)) {
-	        if (combinedElement) {
-	            if (!quizMode.active && !spotifyBuild.active) {
-	                saveElement(combinedElement);
-	                setMessage("ELEMENT SAVED TO SHELF");
-	                setTimeout(() => setMessage("LAB READY"), 2000);
-	            }
-            setCombinedElement(null);
-            fusionErrorRef.current = false;
-            snapFuseArmedRef.current = false;
-        } else if (data.isResetGesture) {
-            if (fusionErrorRef.current || combinedElement) {
-                setCombinedElement(null);
-                fusionErrorRef.current = false;
-                snapFuseArmedRef.current = true;
-	                if (spotifyBuild.active) {
-	                    setMessage("Design Spotify: assemble the streaming platform");
-	                } else if (quizMode.active && quizMode.targetName) {
-	                    setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
-	                } else {
-	                    setMessage("LAB READY");
-                }
-            }
+    if (data.isResetGesture || (data.isClosedFist && combinedElement)) {
+      if (combinedElement) {
+        if (!quizMode.active && !spotifyBuild.active) {
+          saveElement(combinedElement);
+          setMessage("ELEMENT SAVED TO SHELF");
+          setTimeout(() => setMessage("LAB READY"), 2000);
         }
-        return; 
+        setCombinedElement(null);
+        fusionErrorRef.current = false;
+        snapFuseArmedRef.current = false;
+      } else if (data.isResetGesture) {
+        if (fusionErrorRef.current || combinedElement) {
+          setCombinedElement(null);
+          fusionErrorRef.current = false;
+          snapFuseArmedRef.current = true;
+          if (spotifyBuild.active) {
+            setMessage("Design Spotify: assemble the streaming platform");
+          } else if (quizMode.active && quizMode.targetName) {
+            setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
+          } else {
+            setMessage("LAB READY");
+          }
+        }
+      }
+      rememberPinchState();
+      return;
     }
 
     if (fusionErrorRef.current) {
-        if (!data.isSnapReady && data.handDistance > 0.25) {
-            fusionErrorRef.current = false;
-            snapFuseArmedRef.current = true;
-	            if (spotifyBuild.active) {
-	                setMessage("Design Spotify: assemble the streaming platform");
-	            } else if (quizMode.active && quizMode.targetName) {
-	                setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
-	            } else {
-	                setMessage("LAB READY");
-            }
+      if (!data.isSnapReady && data.handDistance > 0.25) {
+        fusionErrorRef.current = false;
+        snapFuseArmedRef.current = true;
+        if (spotifyBuild.active) {
+          setMessage("Design Spotify: assemble the streaming platform");
+        } else if (quizMode.active && quizMode.targetName) {
+          setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
+        } else {
+          setMessage("LAB READY");
         }
-        return;
+      }
+      rememberPinchState();
+      return;
     }
 
     if (!combinedElement && !fusionErrorRef.current) {
-        // Only hit test if the hand is present
-        if (data.left.isPresent) {
-            const leftHit = performHitTest(data.left.indexPosition.x, data.left.indexPosition.y, data.cameraAspect);
-            if (leftHit) {
-                if (leftHit.id !== lastLeftHoverRef.current || data.left.isPinching) {
-                    handleInteraction(leftHit, 'LEFT', data.left.isPinching);
-                    lastLeftHoverRef.current = leftHit.id;
-                }
-            } else {
-                lastLeftHoverRef.current = null;
-            }
+      // Only hit test if the hand is present
+      if (data.left.isPresent) {
+        const leftHit = performHitTest(data.left.indexPosition.x, data.left.indexPosition.y, data.cameraAspect);
+        if (leftHit) {
+          if (leftHit.id !== lastLeftHoverRef.current || data.left.isPinching) {
+            handleInteraction(leftHit, 'LEFT', data.left.isPinching, leftPinchStarted);
+            lastLeftHoverRef.current = leftHit.id;
+          }
         } else {
-            // Reset hover state if hand lost
-            lastLeftHoverRef.current = null;
+          lastLeftHoverRef.current = null;
         }
+      } else {
+        // Reset hover state if hand lost
+        lastLeftHoverRef.current = null;
+      }
         
-        if (data.right.isPresent) {
-            const rightHit = performHitTest(data.right.indexPosition.x, data.right.indexPosition.y, data.cameraAspect);
-            if (rightHit) {
-                 if (rightHit.id !== lastRightHoverRef.current || data.right.isPinching) {
-                    handleInteraction(rightHit, 'RIGHT', data.right.isPinching);
-                    lastRightHoverRef.current = rightHit.id;
-                 }
-            } else {
-                lastRightHoverRef.current = null;
-            }
+      if (data.right.isPresent) {
+        const rightHit = performHitTest(data.right.indexPosition.x, data.right.indexPosition.y, data.cameraAspect);
+        if (rightHit) {
+          if (rightHit.id !== lastRightHoverRef.current || data.right.isPinching) {
+            handleInteraction(rightHit, 'RIGHT', data.right.isPinching, rightPinchStarted);
+            lastRightHoverRef.current = rightHit.id;
+          }
         } else {
-             lastRightHoverRef.current = null;
+          lastRightHoverRef.current = null;
         }
+      } else {
+        lastRightHoverRef.current = null;
+      }
     }
 
     if (!combinedElement && data.isSnapReady && !fusionErrorRef.current && snapFuseArmedRef.current) {
@@ -839,10 +858,11 @@ const App: React.FC = () => {
     }
 
     if (!data.isSnapReady) {
-        snapFuseArmedRef.current = true;
+      snapFuseArmedRef.current = true;
     }
 
-	  }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode, spotifyBuild.active]);
+    rememberPinchState();
+  }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode, spotifyBuild.active]);
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden select-none">
