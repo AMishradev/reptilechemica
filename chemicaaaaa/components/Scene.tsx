@@ -8,7 +8,7 @@ import ParticleSphere from './ParticleSphere';
 import WaterSimulation from './WaterSimulation'; 
 import { SaltPile, SaltLattice } from './SaltSimulation'; 
 import AtomLabel from './AtomLabel';
-import { ElementData, TrackingData } from '../types';
+import { ElementData, TrackingData, SpotifyBuildState } from '../types';
 import { COMBINATIONS, ELEMENTS } from '../constants';
 import * as THREE from 'three';
 
@@ -17,6 +17,7 @@ interface SceneProps {
   rightElement: ElementData;
   combinedElement: ElementData | null;
   trackingData: React.MutableRefObject<TrackingData>;
+  spotifyBuild?: SpotifyBuildState | null;
 }
 
 const getComponentData = (symbol: string) => {
@@ -932,6 +933,250 @@ const SystemVisual: React.FC<{
   return <PresetDiagram preset={preset} scaleRef={scaleRef} opacityTarget={opacityTarget} />;
 };
 
+const SPOTIFY_ARCH_POSITIONS: Record<string, DiagramPosition> = {
+  CLIENT: pos(-3.25, 0.55, 0),
+  DNS: pos(-2.05, 1.08, 0),
+  CDN: pos(-2.05, -0.42, 0),
+  API: pos(-0.62, 0.38, 0),
+  LB: pos(0.5, 0.38, 0),
+  APP: pos(1.62, 0.38, 0),
+  DB: pos(3.0, 1.02, 0),
+  CACHE: pos(3.0, 0.12, 0),
+  QUEUE: pos(3.0, -0.8, 0),
+  OBJ: pos(-0.62, -1.08, 0),
+};
+
+const SPOTIFY_ARCH_LINKS: Array<{
+  from: string;
+  to: string;
+  symbols: string[];
+  color: string;
+}> = [
+  { from: 'CLIENT', to: 'DNS', symbols: ['EDGE', 'WEBAPP'], color: '#38bdf8' },
+  { from: 'DNS', to: 'API', symbols: ['EDGE', 'WEBAPP'], color: '#38bdf8' },
+  { from: 'CLIENT', to: 'CDN', symbols: ['STATIC', 'CONTENT'], color: '#67e8f9' },
+  { from: 'CDN', to: 'OBJ', symbols: ['MEDIA', 'CONTENT'], color: '#c084fc' },
+  { from: 'API', to: 'LB', symbols: ['ROUTE', 'WEBAPP'], color: '#2dd4bf' },
+  { from: 'API', to: 'APP', symbols: ['SVC', 'APIAPP'], color: '#f472b6' },
+  { from: 'LB', to: 'APP', symbols: ['POOL', 'ROUTE', 'WEBAPP'], color: '#34d399' },
+  { from: 'APP', to: 'DB', symbols: ['CRUD', 'APIAPP', 'DATA'], color: '#fb923c' },
+  { from: 'APP', to: 'CACHE', symbols: ['FAST', 'SCALE'], color: '#4ade80' },
+  { from: 'APP', to: 'QUEUE', symbols: ['ASYNC', 'SCALE', 'WORKER'], color: '#60a5fa' },
+  { from: 'DB', to: 'CACHE', symbols: ['READ', 'DATA'], color: '#a3e635' },
+  { from: 'QUEUE', to: 'DB', symbols: ['JOBDB', 'WORKER'], color: '#818cf8' },
+];
+
+const SPOTIFY_NODE_LABELS: Record<string, string> = {
+  CLIENT: 'Client',
+  DNS: 'DNS',
+  CDN: 'CDN',
+  API: 'API',
+  LB: 'Balancer',
+  APP: 'App',
+  DB: 'Database',
+  CACHE: 'Cache',
+  QUEUE: 'Queue',
+  OBJ: 'Storage',
+};
+
+const SPOTIFY_LABEL_OFFSETS: Record<string, DiagramPosition> = {
+  CLIENT: pos(0, 0.46, 0.12),
+  DNS: pos(0, 0.46, 0.12),
+  CDN: pos(0, -0.46, 0.12),
+  API: pos(0, 0.46, 0.12),
+  LB: pos(0, -0.46, 0.12),
+  APP: pos(0, 0.46, 0.12),
+  DB: pos(0, 0.46, 0.12),
+  CACHE: pos(0, 0.46, 0.12),
+  QUEUE: pos(0, -0.46, 0.12),
+  OBJ: pos(0, -0.46, 0.12),
+};
+
+const SpotifyBackdrop: React.FC<{ opacityTarget: number }> = ({ opacityTarget }) => {
+  const columns: Array<{ x: number; width: number; label: string; color: string }> = [
+    { x: -2.58, width: 2.1, label: 'EDGE', color: '#38bdf8' },
+    { x: 0.5, width: 2.35, label: 'SERVICES', color: '#34d399' },
+    { x: 2.78, width: 1.55, label: 'DATA', color: '#fb923c' },
+  ];
+
+  return (
+    <group position={[0, 0, -0.22]}>
+      {columns.map(column => (
+        <React.Fragment key={column.label}>
+          <mesh position={[column.x, 0.02, -0.025]}>
+            <boxGeometry args={[column.width, 3.05, 0.018]} />
+            <meshBasicMaterial color={column.color} transparent opacity={0.035 * opacityTarget} />
+          </mesh>
+          <mesh position={[column.x, 1.52, 0]}>
+            <boxGeometry args={[column.width * 0.85, 0.012, 0.01]} />
+            <meshBasicMaterial color={column.color} transparent opacity={0.22 * opacityTarget} />
+          </mesh>
+          <Html position={[column.x, 1.72, 0.04]} center wrapperClass="lab-scene-html" style={{ pointerEvents: 'none' }}>
+            <div
+              className="font-mono text-[10px] font-semibold tracking-[0.22em] whitespace-nowrap"
+              style={{ color: column.color, opacity: 0.7 * opacityTarget, textShadow: `0 0 10px ${column.color}` }}
+            >
+              {column.label}
+            </div>
+          </Html>
+        </React.Fragment>
+      ))}
+      <mesh position={[0, -1.47, 0.02]}>
+        <boxGeometry args={[6.9, 0.012, 0.012]} />
+        <meshBasicMaterial color="#67e8f9" transparent opacity={0.16 * opacityTarget} />
+      </mesh>
+      <mesh position={[0, 0.02, -0.04]}>
+        <circleGeometry args={[3.8, 96]} />
+        <meshBasicMaterial color="#0e7490" transparent opacity={0.018 * opacityTarget} />
+      </mesh>
+    </group>
+  );
+};
+
+const SpotifyNodeCard: React.FC<{
+  component: ElementData;
+  position: DiagramPosition;
+  isActive: boolean;
+  isIdle: boolean;
+  opacityTarget: number;
+  pulseOffset: number;
+}> = ({ component, position, isActive, isIdle, opacityTarget, pulseOffset }) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const opacity = (isActive ? 0.94 : isIdle ? 0.62 : 0.34) * opacityTarget;
+  const labelOpacity = (isActive ? 0.96 : isIdle ? 0.72 : 0.46) * opacityTarget;
+  const displayName = SPOTIFY_NODE_LABELS[component.symbol] ?? component.name;
+  const labelOffset = SPOTIFY_LABEL_OFFSETS[component.symbol] ?? pos(0, 0.34, 0.12);
+
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    const pulse = isActive ? 1 + Math.sin(state.clock.elapsedTime * 2 + pulseOffset) * 0.04 : 1;
+    groupRef.current.scale.lerp(new THREE.Vector3(pulse, pulse, pulse), 0.12);
+  });
+
+  return (
+    <group ref={groupRef} position={position}>
+      <mesh position={[0, 0, -0.025]}>
+        <circleGeometry args={[0.34, 40]} />
+        <meshBasicMaterial color={component.color} transparent opacity={(isActive ? 0.26 : 0.08) * opacityTarget} />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[0.12, 24, 24]} />
+        <meshBasicMaterial color={component.color} transparent opacity={opacity} />
+      </mesh>
+      <mesh>
+        <torusGeometry args={[0.23, 0.008, 8, 64]} />
+        <meshBasicMaterial color={component.color} transparent opacity={(isActive ? 0.72 : 0.2) * opacityTarget} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.34, 0.005, 8, 80]} />
+        <meshBasicMaterial color={isActive ? component.color : '#64748b'} transparent opacity={(isActive ? 0.48 : 0.12) * opacityTarget} />
+      </mesh>
+      <Html position={labelOffset} center wrapperClass="lab-scene-html" style={{ pointerEvents: 'none' }}>
+        <div
+          className="flex items-center gap-2 rounded-full border px-3 py-1.5 font-['Space_Grotesk'] shadow-lg backdrop-blur-md"
+          style={{
+            minWidth: 96,
+            justifyContent: 'center',
+            background: isActive ? 'rgba(2, 6, 23, 0.78)' : 'rgba(2, 6, 23, 0.42)',
+            borderColor: isActive ? `${component.color}aa` : 'rgba(148, 163, 184, 0.22)',
+            boxShadow: isActive ? `0 0 18px ${component.color}55` : '0 0 10px rgba(8, 47, 73, 0.25)',
+            opacity: labelOpacity,
+          }}
+        >
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ background: component.color, boxShadow: isActive ? `0 0 10px ${component.color}` : 'none' }}
+          />
+          <span
+            className="text-[11px] font-semibold tracking-normal text-white whitespace-nowrap"
+            style={{ textShadow: isActive ? `0 0 8px ${component.color}` : 'none' }}
+          >
+            {displayName}
+          </span>
+        </div>
+      </Html>
+    </group>
+  );
+};
+
+const SpotifySystemVisual: React.FC<{
+  build: SpotifyBuildState;
+  opacityTarget: number;
+}> = ({ build, opacityTarget }) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const builtKey = build.builtSymbols.join('|');
+  const builtSet = useMemo(() => new Set(build.builtSymbols), [builtKey]);
+  const activeNodes = useMemo(() => {
+    const nodes = new Set<string>();
+
+    SPOTIFY_ARCH_LINKS.forEach((link) => {
+      if (!link.symbols.some(symbol => builtSet.has(symbol))) return;
+      nodes.add(link.from);
+      nodes.add(link.to);
+    });
+
+    return nodes;
+  }, [builtKey, builtSet]);
+
+  useFrame((state) => {
+    if (!groupRef.current) return;
+    groupRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.18) * 0.06;
+    groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.04;
+  });
+
+  return (
+    <group ref={groupRef} position={[0, 0.24, -1.35]} scale={1.13}>
+      <SpotifyBackdrop opacityTarget={opacityTarget} />
+
+      {SPOTIFY_ARCH_LINKS.map((link, index) => {
+        const start = SPOTIFY_ARCH_POSITIONS[link.from];
+        const end = SPOTIFY_ARCH_POSITIONS[link.to];
+        const isActive = link.symbols.some(symbol => builtSet.has(symbol));
+
+        return (
+          <React.Fragment key={`${link.from}-${link.to}`}>
+            <ConnectionBeam
+              start={start}
+              end={end}
+              color={isActive ? link.color : '#164e63'}
+              opacity={(isActive ? 0.72 : 0.12) * opacityTarget}
+              radius={isActive ? 0.018 : 0.007}
+            />
+            {isActive && (
+              <FlowPacket
+                path={[start, end]}
+                offset={(index * 0.17) % 1}
+                color={link.color}
+                opacity={0.82}
+                speed={0.18}
+                size={0.058}
+                opacityTarget={opacityTarget}
+              />
+            )}
+          </React.Fragment>
+        );
+      })}
+
+      {Object.entries(SPOTIFY_ARCH_POSITIONS).map(([symbol, position], index) => {
+        const isActive = activeNodes.has(symbol);
+
+        return (
+          <SpotifyNodeCard
+            key={symbol}
+            component={getComponentData(symbol)}
+            position={position}
+            isActive={isActive}
+            isIdle={build.builtSymbols.length === 0}
+            opacityTarget={opacityTarget}
+            pulseOffset={index * 0.19}
+          />
+        );
+      })}
+
+    </group>
+  );
+};
+
 // --- BIG EXPLOSION SHADER (Mushroom Cloud) ---
 const bigExplosionVertexShader = `
 uniform float uTime;
@@ -1368,7 +1613,7 @@ const CollisionBurst: React.FC<{ color: string }> = ({ color }) => {
 }
 
 // --- SCENE CONTENT ---
-const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combinedElement, trackingData }) => {
+const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combinedElement, trackingData, spotifyBuild }) => {
   const leftGroupRef = useRef<THREE.Group>(null);
   const rightGroupRef = useRef<THREE.Group>(null);
   const combinedGroupRef = useRef<THREE.Group>(null);
@@ -1535,6 +1780,13 @@ const SceneContent: React.FC<SceneProps> = ({ leftElement, rightElement, combine
       <pointLight position={[10, 10, 10]} intensity={1.5} />
       <pointLight position={[-10, -10, -5]} intensity={0.5} color="#00ffff" />
       
+      {spotifyBuild?.active && (
+        <SpotifySystemVisual
+          build={spotifyBuild}
+          opacityTarget={combinedElement ? 0.42 : 1}
+        />
+      )}
+
       {showBurst && <CollisionBurst color={combinedElement ? combinedElement.color : '#ffffff'} />}
 
       <group ref={leftGroupRef}>

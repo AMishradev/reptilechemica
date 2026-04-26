@@ -12,9 +12,10 @@ interface DashboardProps {
   savedElements: ElementData[];
   labSlots: ElementData[];
   onStartQuiz: (difficulty: 'easy' | 'medium') => void;
+  onStartSpotify: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, labSlots, onStartQuiz }) => {
+const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, labSlots, onStartQuiz, onStartSpotify }) => {
   const [allDiscoverables, setAllDiscoverables] = useState<ElementData[]>([]);
   const [selectedInfo, setSelectedInfo] = useState<ElementData | null>(null);
   const [selectedSlots, setSelectedSlots] = useState<ElementData[]>([]);
@@ -283,6 +284,20 @@ const Dashboard: React.FC<DashboardProps> = ({ isOpen, onClose, savedElements, l
                         <div className="text-sm font-bold text-white">Scale Service</div>
                     </button>
                 </div>
+                <button
+                    onClick={() => {
+                      playClickSound();
+                      onStartSpotify();
+                    }}
+                    className="interactable-btn mt-3 w-full rounded-lg border border-cyan-400/45 bg-cyan-900/25 px-3 py-3 text-left transition-all hover:bg-cyan-800/45"
+                    id="dashboard-spotify"
+                >
+                    <div className="text-[10px] text-cyan-200 font-mono">CHALLENGE</div>
+                    <div className="text-sm font-bold text-white">Design Spotify</div>
+                    <div className="mt-1 text-[11px] text-cyan-100/60 font-mono">
+                      Assemble a simple streaming platform, then submit your design.
+                    </div>
+                </button>
              </div>
 
              {/* Slot Management Panel */}

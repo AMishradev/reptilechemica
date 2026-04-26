@@ -6,7 +6,7 @@ import UIOverlay from './components/UIOverlay';
 import Dashboard from './components/Dashboard';
 import MascotGuide from './components/MascotGuide';
 import { ELEMENTS, COMBINATIONS } from './constants';
-import { TrackingData, ElementData, GameState } from './types';
+import { TrackingData, ElementData, GameState, SpotifyBuildState } from './types';
 import successChime from './assets/sounds/success-chime.mp3';
 import softError from './assets/sounds/soft-error.mp3';
 
@@ -71,6 +71,34 @@ const getRepeatedFailureAdvice = (leftSymbol: string, rightSymbol: string) => {
   return `${leftAdvice}. ${rightAdvice}.`;
 };
 
+const SPOTIFY_BASE_SYMBOLS = ['CLIENT', 'DNS', 'CDN', 'LB', 'API', 'APP', 'DB', 'CACHE', 'QUEUE', 'OBJ'];
+const SPOTIFY_RELEVANT_SYMBOLS = [
+  'EDGE',
+  'STATIC',
+  'MEDIA',
+  'ROUTE',
+  'POOL',
+  'SVC',
+  'CRUD',
+  'FAST',
+  'ASYNC',
+  'READ',
+  'JOBDB',
+  'WEBAPP',
+  'APIAPP',
+  'SCALE',
+  'CONTENT',
+  'DATA',
+  'WORKER',
+];
+const SPOTIFY_TARGET_PIECE_COUNT = 4;
+
+const createInactiveSpotifyBuild = (): SpotifyBuildState => ({
+  active: false,
+  builtSymbols: [],
+  targetPieceCount: SPOTIFY_TARGET_PIECE_COUNT,
+});
+
 const App: React.FC = () => {
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -112,6 +140,8 @@ const App: React.FC = () => {
     targetSymbol: string | null;
     targetName: string | null;
   }>({ active: false, difficulty: null, targetSymbol: null, targetName: null });
+  const [spotifyBuild, setSpotifyBuild] = useState<SpotifyBuildState>(createInactiveSpotifyBuild);
+  const activeSpotifyBuild = spotifyBuild.active ? spotifyBuild : null;
 
   // Fallback to prevent infinite loading if camera fails to init
   useEffect(() => {
@@ -175,7 +205,7 @@ const App: React.FC = () => {
   // Design Warning System
   useEffect(() => {
     if (gameState === 'dead') return;
-    if (quizMode.active) return; // Disable warnings in Quiz Mode
+    if (quizMode.active || spotifyBuild.active) return; // Disable warnings in guided modes
     
     const symbols = [leftElement.symbol, rightElement.symbol];
     const hasClient = symbols.includes('CLIENT');
@@ -186,7 +216,7 @@ const App: React.FC = () => {
            setMessage("WARNING: Clients should not talk directly to databases.");
        }
     }
-  }, [leftElement, rightElement, gameState, message, quizMode.active]);
+  }, [leftElement, rightElement, gameState, message, quizMode.active, spotifyBuild.active]);
 
   const addLabCreatedSlot = useCallback((element: ElementData) => {
       const isCreatedElement = COMBINATIONS.some(c => c.result.symbol === element.symbol);
@@ -252,6 +282,7 @@ const App: React.FC = () => {
       }
       
       setQuizMode({ active: true, difficulty, targetSymbol: target, targetName });
+      setSpotifyBuild(createInactiveSpotifyBuild());
       setIsDashboardOpen(false);
       setMessage(`QUIZ: CREATE ${targetName.toUpperCase()}`);
       // Clear any previous lab created slots
@@ -266,7 +297,10 @@ const App: React.FC = () => {
 
   const lastLeftHoverRef = useRef<string | null>(null);
   const lastRightHoverRef = useRef<string | null>(null);
+  const lastLeftPinchingRef = useRef(false);
+  const lastRightPinchingRef = useRef(false);
   const failedFusionAttemptsRef = useRef<Record<string, number>>({});
+  const preSpotifyLabSlotsRef = useRef<ElementData[] | null>(null);
 
   const snapFuseArmedRef = useRef(true);
 
@@ -292,12 +326,99 @@ const App: React.FC = () => {
     trackingDataRef.current = createIdleTrackingData(trackingDataRef.current.cameraAspect);
     lastLeftHoverRef.current = null;
     lastRightHoverRef.current = null;
+    lastLeftPinchingRef.current = false;
+    lastRightPinchingRef.current = false;
     snapFuseArmedRef.current = true;
   }, [isDashboardOpen]);
 
-  useEffect(() => {
+  const startSpotifyChallenge = useCallback(() => {
+    const slots = SPOTIFY_BASE_SYMBOLS
+      .map(symbol => ELEMENTS.find(element => element.symbol === symbol))
+      .filter((item): item is ElementData => Boolean(item));
+
+    preSpotifyLabSlotsRef.current = [...labSlots];
+    setLabSlots(slots);
+    setLabCreatedSlots([]);
+    setCombinedElement(null);
+    setQuizMode({ active: false, difficulty: null, targetSymbol: null, targetName: null });
+    setSpotifyBuild({
+      active: true,
+      builtSymbols: [],
+      targetPieceCount: SPOTIFY_TARGET_PIECE_COUNT,
+    });
+    setMascotAdvice("Build a compact Spotify streaming system by snapping useful components together.");
+    fusionErrorRef.current = false;
+    snapFuseArmedRef.current = true;
+
+    if (slots.length > 0) {
+      setLeftElement(slots[0]);
+      setRightElement(slots[1] || slots[0]);
+    }
+
+    setIsDashboardOpen(false);
+    setMessage("Design Spotify: assemble the streaming platform");
+  }, [labSlots]);
+
+  const returnFromSpotifyChallenge = useCallback((nextMessage = "LAB READY") => {
+    if (preSpotifyLabSlotsRef.current) {
+      setLabSlots(preSpotifyLabSlotsRef.current);
+      localStorage.setItem('labSlots', JSON.stringify(preSpotifyLabSlotsRef.current));
+      preSpotifyLabSlotsRef.current = null;
+    }
+    setSpotifyBuild(createInactiveSpotifyBuild());
+    setCombinedElement(null);
+    setLabCreatedSlots([]);
     setMascotAdvice(null);
-  }, [leftElement.symbol, rightElement.symbol]);
+    fusionErrorRef.current = false;
+    snapFuseArmedRef.current = true;
+    setIsDashboardOpen(true);
+    setMessage(nextMessage);
+  }, []);
+
+  const undoSpotifyPiece = useCallback(() => {
+    if (!spotifyBuild.active) return;
+
+    const removedSymbol = spotifyBuild.builtSymbols[spotifyBuild.builtSymbols.length - 1];
+    if (!removedSymbol) {
+      setMessage("Design Spotify: nothing to undo yet");
+      return;
+    }
+
+    setSpotifyBuild(prev => ({
+      ...prev,
+      builtSymbols: prev.builtSymbols.slice(0, -1),
+    }));
+    setLabCreatedSlots(prev => prev.filter(element => element.symbol !== removedSymbol));
+    setCombinedElement(null);
+    fusionErrorRef.current = false;
+    snapFuseArmedRef.current = true;
+    setMessage(`Design Spotify: removed ${removedSymbol}`);
+  }, [spotifyBuild.active, spotifyBuild.builtSymbols]);
+
+  const submitSpotifyDesign = useCallback(() => {
+    if (!spotifyBuild.active) return;
+
+    if (spotifyBuild.builtSymbols.length >= spotifyBuild.targetPieceCount) {
+      setMessage("Spotify design passed. Returning...");
+      setMascotAdvice("Solid draft: you assembled enough paths for a believable streaming architecture.");
+      setTimeout(() => returnFromSpotifyChallenge("LAB READY"), 2200);
+      return;
+    }
+
+    setMessage(`Spotify design failed. Add ${spotifyBuild.targetPieceCount - spotifyBuild.builtSymbols.length} more pieces`);
+    setMascotAdvice("Add a few more working paths before submitting the design.");
+    fusionErrorRef.current = true;
+    setTimeout(() => returnFromSpotifyChallenge("LAB READY"), 2400);
+  }, [returnFromSpotifyChallenge, spotifyBuild.active, spotifyBuild.builtSymbols, spotifyBuild.targetPieceCount]);
+
+  const stopSpotifyChallenge = useCallback(() => {
+    if (!spotifyBuild.active) return;
+    returnFromSpotifyChallenge("LAB READY");
+  }, [returnFromSpotifyChallenge, spotifyBuild.active]);
+
+  useEffect(() => {
+    if (!spotifyBuild.active) setMascotAdvice(null);
+  }, [leftElement.symbol, rightElement.symbol, spotifyBuild.active]);
 
   const checkCombination = useCallback(() => {
     if (combinedElement || gameState === 'dead') return;
@@ -312,6 +433,48 @@ const App: React.FC = () => {
     if (combo) {
         failedFusionAttemptsRef.current[getPairKey(leftElement.symbol, rightElement.symbol)] = 0;
         setMascotAdvice(null);
+
+        if (spotifyBuild.active) {
+            const result = combo.result;
+            const isRelevant = SPOTIFY_RELEVANT_SYMBOLS.includes(result.symbol);
+
+            if (!isRelevant) {
+                setMessage(`${result.name} works, but it is not useful for Spotify`);
+                setMascotAdvice("For this challenge, focus on entry, delivery, routing, persistence, caching, and async work.");
+                fusionErrorRef.current = false;
+                return;
+            }
+
+            if (spotifyBuild.builtSymbols.includes(result.symbol)) {
+                setMessage(`Design Spotify: ${result.symbol} is already installed`);
+                setMascotAdvice("That piece is already part of the architecture. Try composing the next useful path.");
+                fusionErrorRef.current = false;
+                return;
+            }
+
+            const nextBuiltSymbols = [...spotifyBuild.builtSymbols, result.symbol];
+            setSpotifyBuild(prev => ({
+                ...prev,
+                builtSymbols: prev.builtSymbols.includes(result.symbol)
+                    ? prev.builtSymbols
+                    : [...prev.builtSymbols, result.symbol],
+            }));
+            setLabCreatedSlots(prev => (
+                prev.some(element => element.symbol === result.symbol)
+                    ? prev
+                    : [...prev, result]
+            ));
+            setCombinedElement(result);
+            setMessage(`Spotify piece added: ${result.name}`);
+            setMascotAdvice(`Added ${result.name}. The diagram now has ${nextBuiltSymbols.length} assembled pieces.`);
+            fusionErrorRef.current = false;
+
+            setTimeout(() => {
+                setCombinedElement(current => current?.symbol === result.symbol ? null : current);
+                setMessage(`Design Spotify: ${nextBuiltSymbols.length} pieces assembled`);
+            }, 1200);
+            return;
+        }
 
         // QUIZ LOGIC
         if (quizMode.active && quizMode.targetSymbol) {
@@ -390,7 +553,7 @@ const App: React.FC = () => {
       setMessage("Design Unstable: Incompatible");
       fusionErrorRef.current = true; 
     }
-  }, [leftElement, rightElement, combinedElement, gameState, quizMode, addLabCreatedSlot]);
+  }, [leftElement, rightElement, combinedElement, gameState, quizMode, addLabCreatedSlot, spotifyBuild.active, spotifyBuild.builtSymbols]);
 
   // Play success sound when components are successfully combined
   const prevCombinedElementRef = useRef<ElementData | null>(null);
@@ -400,7 +563,7 @@ const App: React.FC = () => {
         !prevCombinedElementRef.current &&
         combinedElement.symbol !== 'BOOM' && 
         combinedElement.symbol !== 'X' &&
-        (message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS'))) {
+        (message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS') || message.includes('Spotify piece added'))) {
       try {
         const audio = new Audio(successChime);
         audio.volume = 0.7;
@@ -428,7 +591,7 @@ const App: React.FC = () => {
     const isNewError = isError && message !== prevMessageRef.current;
     
     // Don't play if it's a success message
-    const isSuccess = message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS');
+    const isSuccess = message.includes('FUSION SUCCESS') || message.includes('QUIZ SUCCESS') || message.includes('passed');
     
     // Play error sound for new error messages
     if (isNewError && !isSuccess) {
@@ -485,10 +648,31 @@ const App: React.FC = () => {
     return null;
   };
 
-  const handleInteraction = useCallback((hit: HTMLElement, hand: 'LEFT' | 'RIGHT', isPinching: boolean = false) => {
+  const handleInteraction = useCallback((hit: HTMLElement, hand: 'LEFT' | 'RIGHT', isPinching: boolean = false, isPinchStart: boolean = false) => {
       // Only trigger on pinch/click, not just hover
       if (!isPinching && !hit.id.startsWith('shelf-item-')) {
           return; // For non-shelf items, require pinch to interact
+      }
+
+      const runThrottledAction = (action: () => void) => {
+          const now = Date.now();
+          if (now - lastInteractionTime.current < 650) return;
+          lastInteractionTime.current = now;
+          action();
+      };
+
+      if (hit.id === 'spotify-undo') {
+          runThrottledAction(undoSpotifyPiece);
+          return;
+      }
+      if (hit.id === 'spotify-submit') {
+          runThrottledAction(submitSpotifyDesign);
+          return;
+      }
+      if (hit.id === 'spotify-stop') {
+          if (!isPinchStart) return;
+          runThrottledAction(stopSpotifyChallenge);
+          return;
       }
       
       // 1. Dashboard Logic
@@ -502,8 +686,7 @@ const App: React.FC = () => {
           setMessage("LAB READY");
           return;
       }
-      if (hit.id.startsWith('dashboard-item-')) {
-           // Trigger click on the component to select it
+      if (hit.id.startsWith('dashboard-')) {
            hit.click();
            return;
       }
@@ -526,7 +709,9 @@ const App: React.FC = () => {
                  setMessage("ELEMENT SWAPPED (RIGHT)");
              }
              setTimeout(() => {
-                 if (quizMode.active && quizMode.targetName) {
+                 if (spotifyBuild.active) {
+                     setMessage("Design Spotify: assemble the streaming platform");
+                 } else if (quizMode.active && quizMode.targetName) {
                      setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
                  } else {
                      setMessage("LAB READY");
@@ -534,13 +719,22 @@ const App: React.FC = () => {
              }, 1000);
           }
       }
-  }, [labSlots, labCreatedSlots, isDashboardOpen, quizMode]);
+  }, [labSlots, labCreatedSlots, undoSpotifyPiece, submitSpotifyDesign, stopSpotifyChallenge, isDashboardOpen, quizMode, spotifyBuild.active]);
 
   const onTrackingUpdate = useCallback((data: TrackingData) => {
     if (isDashboardOpen) {
       trackingDataRef.current = createIdleTrackingData(data.cameraAspect);
+      lastLeftPinchingRef.current = false;
+      lastRightPinchingRef.current = false;
       return;
     }
+
+    const leftPinchStarted = data.left.isPinching && !lastLeftPinchingRef.current;
+    const rightPinchStarted = data.right.isPinching && !lastRightPinchingRef.current;
+    const rememberPinchState = () => {
+      lastLeftPinchingRef.current = data.left.isPinching;
+      lastRightPinchingRef.current = data.right.isPinching;
+    };
     
     trackingDataRef.current = data;
     
@@ -582,11 +776,14 @@ const App: React.FC = () => {
     }
     */
     
-    if (gameState === 'dead') return;
+    if (gameState === 'dead') {
+        rememberPinchState();
+        return;
+    }
 
     if (data.isResetGesture || (data.isClosedFist && combinedElement)) {
         if (combinedElement) {
-            if (!quizMode.active) {
+            if (!quizMode.active && !spotifyBuild.active) {
                 saveElement(combinedElement);
                 setMessage("ELEMENT SAVED TO SHELF");
                 setTimeout(() => setMessage("LAB READY"), 2000);
@@ -599,13 +796,16 @@ const App: React.FC = () => {
                 setCombinedElement(null);
                 fusionErrorRef.current = false;
                 snapFuseArmedRef.current = true;
-                if (quizMode.active && quizMode.targetName) {
+                if (spotifyBuild.active) {
+                    setMessage("Design Spotify: assemble the streaming platform");
+                } else if (quizMode.active && quizMode.targetName) {
                     setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
                 } else {
                     setMessage("LAB READY");
                 }
             }
         }
+        rememberPinchState();
         return; 
     }
 
@@ -613,12 +813,15 @@ const App: React.FC = () => {
         if (!data.isSnapReady && data.handDistance > 0.25) {
             fusionErrorRef.current = false;
             snapFuseArmedRef.current = true;
-            if (quizMode.active && quizMode.targetName) {
+            if (spotifyBuild.active) {
+                setMessage("Design Spotify: assemble the streaming platform");
+            } else if (quizMode.active && quizMode.targetName) {
                 setMessage(`QUIZ: CREATE ${quizMode.targetName.toUpperCase()}`);
             } else {
                 setMessage("LAB READY");
             }
         }
+        rememberPinchState();
         return;
     }
 
@@ -628,7 +831,7 @@ const App: React.FC = () => {
             const leftHit = performHitTest(data.left.indexPosition.x, data.left.indexPosition.y, data.cameraAspect);
             if (leftHit) {
                 if (leftHit.id !== lastLeftHoverRef.current || data.left.isPinching) {
-                    handleInteraction(leftHit, 'LEFT', data.left.isPinching);
+                    handleInteraction(leftHit, 'LEFT', data.left.isPinching, leftPinchStarted);
                     lastLeftHoverRef.current = leftHit.id;
                 }
             } else {
@@ -643,7 +846,7 @@ const App: React.FC = () => {
             const rightHit = performHitTest(data.right.indexPosition.x, data.right.indexPosition.y, data.cameraAspect);
             if (rightHit) {
                  if (rightHit.id !== lastRightHoverRef.current || data.right.isPinching) {
-                    handleInteraction(rightHit, 'RIGHT', data.right.isPinching);
+                    handleInteraction(rightHit, 'RIGHT', data.right.isPinching, rightPinchStarted);
                     lastRightHoverRef.current = rightHit.id;
                  }
             } else {
@@ -663,7 +866,8 @@ const App: React.FC = () => {
         snapFuseArmedRef.current = true;
     }
 
-  }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode, saveElement]);
+    rememberPinchState();
+  }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode, saveElement, spotifyBuild.active]);
 
   return (
     <div id="reptile-chemica-lab" className="relative w-full h-full bg-black overflow-hidden select-none">
@@ -714,6 +918,7 @@ const App: React.FC = () => {
                 rightElement={rightElement} 
                 combinedElement={displayedCombinedElement}
                 trackingData={trackingDataRef}
+                spotifyBuild={activeSpotifyBuild}
             />
             <UIOverlay
                 leftElement={leftElement}
@@ -723,6 +928,10 @@ const App: React.FC = () => {
                 trackingRef={trackingDataRef}
                 labSlots={labSlots}
                 labCreatedSlots={labCreatedSlots}
+                spotifyBuild={activeSpotifyBuild}
+                onSpotifyUndo={undoSpotifyPiece}
+                onSpotifySubmit={submitSpotifyDesign}
+                onSpotifyStop={stopSpotifyChallenge}
                 isDashboardOpen={isDashboardOpen}
                 onToggleDashboard={() => setIsDashboardOpen(!isDashboardOpen)}
                 savedElements={savedElements}
@@ -762,6 +971,7 @@ const App: React.FC = () => {
                savedElements={savedElements}
                labSlots={labSlots}
                onStartQuiz={startQuiz}
+               onStartSpotify={startSpotifyChallenge}
             />
             {!isDashboardOpen && (
             <MascotGuide 
