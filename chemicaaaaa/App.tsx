@@ -1,14 +1,33 @@
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Scene from './components/Scene';
 import HandTracker from './components/HandTracker';
 import UIOverlay from './components/UIOverlay';
 import Dashboard from './components/Dashboard';
 import MascotGuide from './components/MascotGuide';
 import { ELEMENTS, COMBINATIONS } from './constants';
-import { TrackingData, ElementData, GameState, SpotifyBuildState } from './types';
+import { TrackingData, ElementData, GameState, SpotifyBuildState, MultiplayerLabState, MultiplayerSession } from './types';
+import {
+  copyText,
+  createRoomCode,
+  elementsFromSymbols,
+  getElementBySymbol,
+  getRoomPath,
+  getShareUrl,
+  normalizeRoomCode,
+  sameMultiplayerLabState,
+  sameSpotifyBuild,
+  sameSymbolList,
+  symbolsFromElements,
+} from './utils/multiplayer';
 import successChime from './assets/sounds/success-chime.mp3';
 import softError from './assets/sounds/soft-error.mp3';
+
+interface AppProps {
+  multiplayer?: MultiplayerSession;
+  requestedRoomId?: string | null;
+}
 
 const createIdleTrackingData = (cameraAspect = 1.77): TrackingData => ({
   left: {
@@ -99,7 +118,8 @@ const createInactiveSpotifyBuild = (): SpotifyBuildState => ({
   targetPieceCount: SPOTIFY_TARGET_PIECE_COUNT,
 });
 
-const App: React.FC = () => {
+const App: React.FC<AppProps> = ({ multiplayer, requestedRoomId = null }) => {
+  const navigate = useNavigate();
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraRetryKey, setCameraRetryKey] = useState(0);
@@ -142,6 +162,13 @@ const App: React.FC = () => {
   }>({ active: false, difficulty: null, targetSymbol: null, targetName: null });
   const [spotifyBuild, setSpotifyBuild] = useState<SpotifyBuildState>(createInactiveSpotifyBuild);
   const activeSpotifyBuild = spotifyBuild.active ? spotifyBuild : null;
+  const isMultiplayer = Boolean(multiplayer);
+  const coBuildRoomId = multiplayer?.roomId ?? requestedRoomId;
+  const [coBuildNotice, setCoBuildNotice] = useState<string | null>(null);
+  const [coBuildJoinCode, setCoBuildJoinCode] = useState("");
+  const coBuildNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const multiplayerSyncingRef = useRef(false);
+  const multiplayerHydratedRef = useRef(false);
 
   // Fallback to prevent infinite loading if camera fails to init
   useEffect(() => {
@@ -156,9 +183,33 @@ const App: React.FC = () => {
 
   const [labSlots, setLabSlots] = useState<ElementData[]>([]); // Dashboard slots (8 manually selected)
   const [labCreatedSlots, setLabCreatedSlots] = useState<ElementData[]>([]); // Lab-created slots (8 auto-discovered)
+  const labSlotSymbols = useMemo(() => symbolsFromElements(labSlots), [labSlots]);
+  const labCreatedSlotSymbols = useMemo(() => symbolsFromElements(labCreatedSlots), [labCreatedSlots]);
+  const currentMultiplayerState = useMemo<MultiplayerLabState>(
+    () => ({
+      leftSymbol: leftElement.symbol,
+      rightSymbol: rightElement.symbol,
+      combinedSymbol: combinedElement?.symbol ?? null,
+      message,
+      labSlotSymbols,
+      labCreatedSlotSymbols,
+      spotifyBuild,
+    }),
+    [
+      leftElement.symbol,
+      rightElement.symbol,
+      combinedElement?.symbol,
+      message,
+      labSlotSymbols,
+      labCreatedSlotSymbols,
+      spotifyBuild,
+    ]
+  );
 
   // Load saved history and lab slots on mount
   useEffect(() => {
+    if (isMultiplayer) return;
+
     const validCreatedSymbols = new Set(COMBINATIONS.map(c => c.result.symbol));
     const validBaseSymbols = new Set(ELEMENTS.map(e => e.symbol));
     const validSymbols = new Set([...validBaseSymbols, ...validCreatedSymbols]);
@@ -200,7 +251,84 @@ const App: React.FC = () => {
         console.error('Failed to parse lab created slots', e);
       }
     }
-  }, []);
+  }, [isMultiplayer]);
+
+  useEffect(() => {
+    if (!multiplayer) return;
+
+    const remoteState = multiplayer.state;
+    multiplayerSyncingRef.current = true;
+    multiplayerHydratedRef.current = true;
+
+    const nextLeft = getElementBySymbol(remoteState.leftSymbol);
+    const nextRight = getElementBySymbol(remoteState.rightSymbol);
+    const nextCombined = getElementBySymbol(remoteState.combinedSymbol);
+    const nextLabSlots = elementsFromSymbols(remoteState.labSlotSymbols);
+    const nextLabCreatedSlots = elementsFromSymbols(remoteState.labCreatedSlotSymbols);
+
+    if (nextLeft && nextLeft.symbol !== leftElement.symbol) {
+      setLeftElement(nextLeft);
+    }
+
+    if (nextRight && nextRight.symbol !== rightElement.symbol) {
+      setRightElement(nextRight);
+    }
+
+    if ((nextCombined?.symbol ?? null) !== (combinedElement?.symbol ?? null)) {
+      setCombinedElement(nextCombined);
+    }
+
+    if (!sameSymbolList(remoteState.labSlotSymbols, labSlotSymbols)) {
+      setLabSlots(nextLabSlots);
+    }
+
+    if (!sameSymbolList(remoteState.labCreatedSlotSymbols, labCreatedSlotSymbols)) {
+      setLabCreatedSlots(nextLabCreatedSlots);
+    }
+
+    if (!sameSpotifyBuild(remoteState.spotifyBuild, spotifyBuild)) {
+      setSpotifyBuild(remoteState.spotifyBuild);
+    }
+
+    if (remoteState.message && remoteState.message !== message) {
+      setMessage(remoteState.message);
+    }
+
+    const releaseSync = window.setTimeout(() => {
+      multiplayerSyncingRef.current = false;
+    }, 0);
+
+    return () => window.clearTimeout(releaseSync);
+  }, [
+    multiplayer,
+    multiplayer?.state.leftSymbol,
+    multiplayer?.state.rightSymbol,
+    multiplayer?.state.combinedSymbol,
+    multiplayer?.state.message,
+    multiplayer?.state.labSlotSymbols,
+    multiplayer?.state.labCreatedSlotSymbols,
+    multiplayer?.state.spotifyBuild,
+    leftElement.symbol,
+    rightElement.symbol,
+    combinedElement?.symbol,
+    labSlotSymbols,
+    labCreatedSlotSymbols,
+    spotifyBuild,
+    message,
+  ]);
+
+  useEffect(() => {
+    if (!multiplayer || !multiplayerHydratedRef.current || multiplayerSyncingRef.current) return;
+
+    if (!sameMultiplayerLabState(currentMultiplayerState, multiplayer.state)) {
+      multiplayer.updateState(currentMultiplayerState);
+    }
+  }, [currentMultiplayerState, multiplayer]);
+
+  useEffect(() => {
+    if (!multiplayer) return;
+    multiplayer.updateSelectedSymbol(`${leftElement.symbol}+${rightElement.symbol}`);
+  }, [leftElement.symbol, rightElement.symbol, multiplayer]);
 
   // Design Warning System
   useEffect(() => {
@@ -318,6 +446,63 @@ const App: React.FC = () => {
   const retryCamera = useCallback(() => {
     setCameraError(null);
     setCameraRetryKey(key => key + 1);
+  }, []);
+
+  const showCoBuildNotice = useCallback((text: string) => {
+    setCoBuildNotice(text);
+    if (coBuildNoticeTimerRef.current) {
+      clearTimeout(coBuildNoticeTimerRef.current);
+    }
+    coBuildNoticeTimerRef.current = setTimeout(() => {
+      setCoBuildNotice(null);
+      coBuildNoticeTimerRef.current = null;
+    }, 3200);
+  }, []);
+
+  const startCoBuild = useCallback(() => {
+    const roomId = createRoomCode();
+    const roomUrl = getShareUrl(roomId);
+
+    copyText(roomUrl)
+      .then(() => showCoBuildNotice("Room link copied - share with a friend"))
+      .catch(() => showCoBuildNotice("Room created - copy the URL from your browser"));
+
+    navigate(getRoomPath(roomId));
+  }, [navigate, showCoBuildNotice]);
+
+  const copyCoBuildLink = useCallback(() => {
+    if (!coBuildRoomId) {
+      startCoBuild();
+      return;
+    }
+
+    copyText(getShareUrl(coBuildRoomId))
+      .then(() => showCoBuildNotice("Room link copied"))
+      .catch(() => showCoBuildNotice("Could not copy automatically - use the browser URL"));
+  }, [coBuildRoomId, showCoBuildNotice, startCoBuild]);
+
+  const joinCoBuild = useCallback(() => {
+    const roomId = normalizeRoomCode(coBuildJoinCode);
+
+    if (!roomId) {
+      showCoBuildNotice("Enter a room code first");
+      return;
+    }
+
+    setCoBuildJoinCode(roomId);
+    navigate(getRoomPath(roomId));
+  }, [coBuildJoinCode, navigate, showCoBuildNotice]);
+
+  const leaveCoBuild = useCallback(() => {
+    navigate("/play");
+  }, [navigate]);
+
+  useEffect(() => {
+    return () => {
+      if (coBuildNoticeTimerRef.current) {
+        clearTimeout(coBuildNoticeTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -674,6 +859,12 @@ const App: React.FC = () => {
           runThrottledAction(stopSpotifyChallenge);
           return;
       }
+
+      if (hit.id.startsWith('co-build-')) {
+          if (!isPinchStart) return;
+          runThrottledAction(() => hit.click());
+          return;
+      }
       
       // 1. Dashboard Logic
       if (hit.id === 'dashboard-toggle') {
@@ -870,7 +1061,12 @@ const App: React.FC = () => {
   }, [combinedElement, checkCombination, handleInteraction, isDashboardOpen, quizMode, saveElement, spotifyBuild.active]);
 
   return (
-    <div id="reptile-chemica-lab" className="relative w-full h-full bg-black overflow-hidden select-none">
+    <div
+      id="reptile-chemica-lab"
+      className="relative w-full h-full bg-black overflow-hidden select-none"
+      onPointerMove={multiplayer?.onPointerMove}
+      onPointerLeave={multiplayer?.onPointerLeave}
+    >
       {!visualPreviewElement && !isDashboardOpen && !cameraError && (
         <HandTracker
           key={cameraRetryKey}
@@ -932,6 +1128,17 @@ const App: React.FC = () => {
                 onSpotifyUndo={undoSpotifyPiece}
                 onSpotifySubmit={submitSpotifyDesign}
                 onSpotifyStop={stopSpotifyChallenge}
+                roomId={coBuildRoomId}
+                isMultiplayer={isMultiplayer}
+                isMultiplayerUnavailable={Boolean(requestedRoomId && !multiplayer)}
+                multiplayerPeerCount={multiplayer?.peers.length ?? 0}
+                coBuildNotice={coBuildNotice}
+                coBuildJoinCode={coBuildJoinCode}
+                onCoBuildJoinCodeChange={setCoBuildJoinCode}
+                onStartCoBuild={startCoBuild}
+                onJoinCoBuild={joinCoBuild}
+                onCopyRoomLink={copyCoBuildLink}
+                onLeaveCoBuild={leaveCoBuild}
                 isDashboardOpen={isDashboardOpen}
                 onToggleDashboard={() => setIsDashboardOpen(!isDashboardOpen)}
                 savedElements={savedElements}

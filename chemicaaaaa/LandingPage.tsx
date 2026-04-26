@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Stars } from "@react-three/drei/core/Stars.js";
 import * as THREE from "three";
+import { copyText, createRoomCode, getRoomPath, getShareUrl, normalizeRoomCode } from "./utils/multiplayer";
 
 // Particle Sphere for Background
 const BackgroundParticleSphere: React.FC = () => {
@@ -316,6 +317,7 @@ const SystemArchitecturePreview: React.FC = () => (
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const [isLoaded, setIsLoaded] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
 
   useEffect(() => {
     setIsLoaded(true);
@@ -323,6 +325,22 @@ const LandingPage: React.FC = () => {
 
   const handleGetStarted = () => {
     navigate("/play");
+  };
+
+  const handleCoBuild = () => {
+    const roomId = createRoomCode();
+    const roomUrl = getShareUrl(roomId);
+
+    copyText(roomUrl).catch(() => {
+      // The room URL is still placed in the address bar after navigation.
+    });
+    navigate(getRoomPath(roomId));
+  };
+
+  const handleJoinCoBuild = () => {
+    const roomId = normalizeRoomCode(joinCode);
+    if (!roomId) return;
+    navigate(getRoomPath(roomId));
   };
 
   const handleClose = () => {
@@ -392,6 +410,33 @@ const LandingPage: React.FC = () => {
               >
                 Launch Studio
               </button>
+              <button
+                onClick={handleCoBuild}
+                className="border border-cyan-200/45 bg-cyan-200/10 px-6 py-4 font-['Space_Grotesk'] text-base font-semibold text-cyan-50 transition-colors hover:bg-cyan-200/20"
+              >
+                Co-Build
+              </button>
+              <div className="flex overflow-hidden border border-white/12 bg-black/30">
+                <input
+                  value={joinCode}
+                  onChange={(event) => setJoinCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12))}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleJoinCoBuild();
+                    }
+                  }}
+                  placeholder="ROOM CODE"
+                  className="w-36 bg-transparent px-4 py-4 font-mono text-xs font-semibold uppercase tracking-[0.18em] text-cyan-50 placeholder:text-cyan-100/35 outline-none"
+                  aria-label="Room code"
+                />
+                <button
+                  onClick={handleJoinCoBuild}
+                  className="border-l border-white/12 px-4 py-4 font-mono text-xs font-semibold text-cyan-100 transition-colors hover:bg-cyan-200/10"
+                >
+                  Join
+                </button>
+              </div>
               <div className="border border-white/12 bg-black/30 px-4 py-3 font-mono text-xs text-white/58">
                 HAND TRACKING READY
               </div>

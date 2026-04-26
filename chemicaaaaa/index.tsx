@@ -1,9 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useSearchParams } from "react-router-dom";
 import { ConvexProvider, ConvexReactClient } from "convex/react";
-import App from "./App";
 import LandingPage from "./LandingPage";
+import MultiplayerGate from "./components/MultiplayerRoom";
+import { MULTIPLAYER_ROOM_PARAM, normalizeRoomCode } from "./utils/multiplayer";
 
 const convexUrl = import.meta.env.VITE_CONVEX_URL || "";
 
@@ -20,11 +21,18 @@ if (!rootElement) throw new Error("Root element not found");
 
 const root = ReactDOM.createRoot(rootElement);
 
+const LabRoute = () => {
+  const [searchParams] = useSearchParams();
+  const roomId = normalizeRoomCode(searchParams.get(MULTIPLAYER_ROOM_PARAM));
+
+  return <MultiplayerGate roomId={roomId} />;
+};
+
 const routes = (
   <BrowserRouter>
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route path="/play" element={<App />} />
+      <Route path="/play" element={<LabRoute />} />
     </Routes>
   </BrowserRouter>
 );

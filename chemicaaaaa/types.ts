@@ -44,3 +44,43 @@ export interface SpotifyBuildState {
   builtSymbols: string[];
   targetPieceCount: number;
 }
+
+export interface MultiplayerCursor {
+  x: number;
+  y: number;
+}
+
+export interface MultiplayerPresence {
+  cursor: MultiplayerCursor | null;
+  selectedSymbol: string | null;
+  color: string;
+  label: string;
+}
+
+export interface MultiplayerLabState {
+  leftSymbol: string | null;
+  rightSymbol: string | null;
+  combinedSymbol: string | null;
+  message: string;
+  labSlotSymbols: string[];
+  labCreatedSlotSymbols: string[];
+  spotifyBuild: SpotifyBuildState;
+}
+
+export interface MultiplayerPeer {
+  connectionId: number;
+  cursor: MultiplayerCursor;
+  color: string;
+  label: string;
+  selectedSymbol: string | null;
+}
+
+export interface MultiplayerSession {
+  roomId: string;
+  state: MultiplayerLabState;
+  peers: MultiplayerPeer[];
+  updateState: (patch: Partial<MultiplayerLabState>) => void;
+  updateSelectedSymbol: (symbol: string | null) => void;
+  onPointerMove: (event: { clientX: number; clientY: number }) => void;
+  onPointerLeave: () => void;
+}

@@ -15,6 +15,17 @@ interface UIOverlayProps {
   onSpotifyUndo?: () => void;
   onSpotifySubmit?: () => void;
   onSpotifyStop?: () => void;
+  roomId?: string | null;
+  isMultiplayer?: boolean;
+  isMultiplayerUnavailable?: boolean;
+  multiplayerPeerCount?: number;
+  coBuildNotice?: string | null;
+  coBuildJoinCode?: string;
+  onCoBuildJoinCodeChange?: (value: string) => void;
+  onStartCoBuild?: () => void;
+  onJoinCoBuild?: () => void;
+  onCopyRoomLink?: () => void;
+  onLeaveCoBuild?: () => void;
   isDashboardOpen: boolean;
   onToggleDashboard: () => void;
   savedElements: ElementData[];
@@ -89,6 +100,17 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
   onSpotifyUndo,
   onSpotifySubmit,
   onSpotifyStop,
+  roomId,
+  isMultiplayer = false,
+  isMultiplayerUnavailable = false,
+  multiplayerPeerCount = 0,
+  coBuildNotice,
+  coBuildJoinCode = "",
+  onCoBuildJoinCodeChange,
+  onStartCoBuild,
+  onJoinCoBuild,
+  onCopyRoomLink,
+  onLeaveCoBuild,
   isDashboardOpen,
   onToggleDashboard,
   savedElements,
@@ -247,6 +269,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
         const isDashboardItem = el.id.startsWith("dashboard-");
         const isToggle = el.id === "dashboard-toggle";
         const isSpotifyControl = el.id.startsWith("spotify-");
+        const isCoBuildControl = el.id.startsWith("co-build-");
 
         if (isHovered) {
           el.style.transform = "scale(1.15)";
@@ -256,7 +279,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
             el.style.borderColor = "rgba(0, 255, 255, 0.9)";
             el.style.backgroundColor = "rgba(255, 255, 255, 0.2)";
             el.style.boxShadow = `0 0 20px ${el.dataset.color || "#fff"}`;
-          } else if (isToggle || isDashboardItem || isSpotifyControl) {
+          } else if (isToggle || isDashboardItem || isSpotifyControl || isCoBuildControl) {
             el.style.boxShadow = "0 0 15px rgba(34,211,238,0.4)";
           }
         } else {
@@ -279,7 +302,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
               el.style.boxShadow = "none";
             }
             el.style.backgroundColor = "rgba(10, 10, 10, 0.7)";
-          } else if (isToggle || isSpotifyControl) {
+          } else if (isToggle || isSpotifyControl || isCoBuildControl) {
             el.style.boxShadow = "none";
           }
         }
@@ -421,8 +444,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
           </div>
         </div>
 
-        {/* --- COLLECTION BUTTON (BOTTOM LEFT) --- */}
-        <div className="absolute bottom-10 left-10 pointer-events-auto z-40">
+        {/* --- COLLECTION + CO-BUILD BUTTONS (BOTTOM LEFT) --- */}
+        <div className="absolute bottom-16 left-10 pointer-events-auto z-40 flex flex-wrap items-end gap-3">
           {!isSpotifyMode && (
             <div
               id="dashboard-toggle"
@@ -435,6 +458,80 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
               </span>
             </div>
           )}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                id="co-build-toggle"
+                type="button"
+                onClick={isMultiplayer ? onCopyRoomLink : onStartCoBuild}
+                className={`interactable-btn rounded-xl border px-4 py-3 font-['Space_Grotesk'] text-sm font-semibold tracking-normal transition-all ${
+                  isMultiplayer
+                    ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-100"
+                    : "border-cyan-500/30 bg-black/50 text-cyan-300 hover:bg-cyan-900/20"
+                }`}
+              >
+                {isMultiplayer ? `ROOM ${roomId}` : "Create room"}
+              </button>
+              {!isMultiplayer && (
+                <div className="flex overflow-hidden rounded-xl border border-cyan-500/25 bg-black/55 backdrop-blur-md">
+                  <input
+                    id="co-build-room-code"
+                    value={coBuildJoinCode}
+                    onChange={(event) => onCoBuildJoinCodeChange?.(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12))}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        onJoinCoBuild?.();
+                      }
+                    }}
+                    placeholder="CODE"
+                    className="w-20 bg-transparent px-3 py-3 font-mono text-xs font-semibold uppercase tracking-[0.2em] text-cyan-50 placeholder:text-cyan-100/35 outline-none"
+                    aria-label="Co-build room code"
+                  />
+                  <button
+                    id="co-build-join"
+                    type="button"
+                    onClick={onJoinCoBuild}
+                    className="interactable-btn border-l border-cyan-500/25 px-3 py-3 font-mono text-xs font-semibold text-cyan-100 transition-colors hover:bg-cyan-900/25"
+                  >
+                    Join
+                  </button>
+                </div>
+              )}
+              {isMultiplayer && (
+                <>
+                  <button
+                    id="co-build-copy"
+                    type="button"
+                    onClick={onCopyRoomLink}
+                    className="interactable-btn rounded-xl border border-cyan-400/30 bg-black/55 px-3 py-3 font-mono text-xs font-semibold text-cyan-100 transition-colors hover:bg-cyan-900/25"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    id="co-build-solo"
+                    type="button"
+                    onClick={onLeaveCoBuild}
+                    className="interactable-btn rounded-xl border border-white/15 bg-black/55 px-3 py-3 font-mono text-xs font-semibold text-white/70 transition-colors hover:bg-white/10"
+                  >
+                    Solo
+                  </button>
+                </>
+              )}
+            </div>
+            {(coBuildNotice || isMultiplayerUnavailable) && (
+              <div className="max-w-xs rounded-lg border border-cyan-400/25 bg-black/80 px-3 py-2 font-mono text-[11px] leading-relaxed text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.16)]">
+                {isMultiplayerUnavailable
+                  ? "Set VITE_LIVEBLOCKS_PUBLIC_KEY, then restart dev server to join this room."
+                  : coBuildNotice}
+              </div>
+            )}
+            {isMultiplayer && (
+              <div className="font-mono text-[10px] text-emerald-100/65">
+                {multiplayerPeerCount + 1} builder{multiplayerPeerCount === 0 ? "" : "s"} connected
+              </div>
+            )}
+          </div>
         </div>
 
         {isSpotifyMode && spotifyBuild && (
