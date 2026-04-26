@@ -59,6 +59,21 @@ const getPerformedMascotText = (text: string, mood: MascotMood, message: string)
   return `[curious] ${text}`;
 };
 
+const cleanChatText = (text: string) =>
+  text
+    .replace(/\*\*/g, '')
+    .replace(/(^|\s)[*_]([^*_]+)[*_](?=\s|$)/g, '$1$2')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+interface MascotChatEntry extends AgentverseChatMessage {
+  id: string;
+}
+
+const createChatId = () =>
+  crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
 const MascotGuide: React.FC<MascotGuideProps> = ({ message, isDashboardOpen, trackingData, combinedElement, advice }) => {
   const [mascotText, setMascotText] = useState("Welcome to the design lab. Pick two components.");
   const [isVisible, setIsVisible] = useState(true);
