@@ -104,6 +104,24 @@ export default defineConfig(({ mode }) => {
             });
           },
         },
+        {
+          name: 'atomis-agentverse-chat-dev-proxy',
+          configureServer(server) {
+            server.middlewares.use('/api/agentverse-chat', async (req, res) => {
+              if (req.method !== 'POST') {
+                sendJson(res, 405, { error: 'Method not allowed' });
+                return;
+              }
+
+              if (!asiKey) {
+                sendJson(res, 503, { error: 'ASI_API_KEY is not configured' });
+                return;
+              }
+
+              sendJson(res, 200, { reply: 'pending' });
+            });
+          },
+        },
       ],
       optimizeDeps: {
         exclude: ['@react-three/drei'],
