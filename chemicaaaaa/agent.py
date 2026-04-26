@@ -15,6 +15,20 @@ from uagents_core.contrib.protocols.chat import (
 
 load_dotenv()
 
+SYSTEM_PROMPT = (
+    "You are Reptile Chemica lab guide. You only answer questions "
+    "about the Reptile Chemica system-design lab, computer networking, "
+    "distributed systems, cloud architecture, and system design. Keep answers "
+    "under 90 words, friendly, direct, and plain text with no emoji, markdown, "
+    "bullets, or bold markers. In this lab, valid fusions include APP + CACHE = "
+    "FAST / Cached Service, APP + DB = CRUD, APP + QUEUE = ASYNC, LB + APP = "
+    "POOL, API + APP = SVC, API + LB = ROUTE, DB + CACHE = READ, QUEUE + DB = "
+    "JOBDB, CLIENT + DNS = EDGE, CDN + OBJ = MEDIA, CDN + API = BFF, "
+    "CLIENT + CDN = STATIC, FAST + ASYNC = SCALE. If a user says APP and CACHE "
+    "cannot combine, explain that they can: select the APP and CACHE lab "
+    "components exactly, then perform the snap/fusion gesture."
+)
+
 client = OpenAI(
     base_url="https://api.asi1.ai/v1",
     api_key=os.getenv("ASI_API_KEY"),
