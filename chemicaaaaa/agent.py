@@ -1,10 +1,15 @@
 from datetime import datetime
+from types import MethodType
 from uuid import uuid4
+import asyncio
 import os
 
+import aiohttp
+from aiohttp.client_exceptions import ClientConnectorError
 from dotenv import load_dotenv
 from openai import OpenAI
 from uagents import Agent, Context, Protocol
+from uagents.mailbox import StoredEnvelope
 from uagents_core.contrib.protocols.chat import (
     ChatAcknowledgement,
     ChatMessage,
@@ -42,6 +47,65 @@ agent = Agent(
 )
 
 protocol = Protocol(spec=chat_protocol_spec)
+
+
+def use_agentverse_key_for_mailbox_polling(agent_instance: Agent):
+    agentverse_key = os.getenv("AGENTVERSE_API_KEY")
+    mailbox_client = agent_instance.mailbox_client
+    if not agentverse_key or mailbox_client is None:
+        return
+
+    async def check_mailbox_loop(self):
+        self._logger.info("Using AGENTVERSE_API_KEY for mailbox polling")
+        while True:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    agents_url = self._agentverse.agents_api
+                    async with session.get(
+                        f"{agents_url}/{self._identity.address}/mailbox",
+                        headers={"Authorization": f"Bearer {agentverse_key}"},
+                    ) as resp:
+                        if resp.status == 200:
+                            items = await resp.json()
+                            for item in items:
+                                stored_env = StoredEnvelope.model_validate(item)
+                                await self._handle_envelope(stored_env)
+                        elif resp.status == 404:
+                            if not self._missing_mailbox_warning_logged:
+                                self._logger.warning(
+                                    "Agent mailbox not found: create one using the agent inspector"
+                                )
+                                self._missing_mailbox_warning_logged = True
+                        else:
+                            self._logger.error(
+                                f"Failed to retrieve messages: {resp.status}:{await resp.text()}"
+                            )
+            except (ClientConnectorError, asyncio.TimeoutError) as error:
+                self._logger.warning(f"Failed to connect to mailbox server: {error}")
+            except Exception as error:
+                self._logger.exception(f"Got exception while checking mailbox: {error}")
+
+            await asyncio.sleep(self._poll_interval)
+
+    async def delete_envelope(self, uuid):
+        try:
+            async with aiohttp.ClientSession() as session:
+                agents_url = self._agentverse.agents_api
+                async with session.delete(
+                    f"{agents_url}/{self._identity.address}/mailbox/{str(uuid)}",
+                    headers={"Authorization": f"Bearer {agentverse_key}"},
+                ) as resp:
+                    if resp.status >= 300:
+                        self._logger.exception(
+                            f"Failed to delete envelope from inbox: {await resp.text()}"
+                        )
+        except ClientConnectorError as error:
+            self._logger.warning(f"Failed to connect to mailbox server: {error}")
+        except Exception as error:
+            self._logger.exception(f"Got exception while deleting message: {error}")
+
+    mailbox_client._check_mailbox_loop = MethodType(check_mailbox_loop, mailbox_client)
+    mailbox_client._delete_envelope = MethodType(delete_envelope, mailbox_client)
 
 
 @protocol.on_message(ChatMessage)
@@ -94,6 +158,7 @@ async def handle_ack(ctx: Context, sender: str, msg: ChatAcknowledgement):
 
 
 agent.include(protocol, publish_manifest=True)
+use_agentverse_key_for_mailbox_polling(agent)
 
 if __name__ == "__main__":
     agent.run()
